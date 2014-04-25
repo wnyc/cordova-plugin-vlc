@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<plugin xmlns="http://apache.org/cordova/ns/plugins/1.0"
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    id="org.nypr.cordova.vlcplugin"
+    version="0.1.0">
+    <name>Device</name>
+    <description>VLC Plugin</description>
+    <license>Apache 2.0</license>
+    <keywords>audio,stream,radio</keywords>
+    <repo>git@git.wnyc.net:mobile/cordova/cordova-plugin-vlc.git</repo>
+
+    <!-- ios -->
+    <platform name="ios">
+        <config-file target="config.xml" parent="/*">
+            <feature name="AudioPlayerPlugin">
+                <param name="ios-package" value="VLCPlugin" />
+                <param name="onload" value="true" />
+            </feature>
+        </config-file>
+
+        <header-file src="src/ios/VLCPlugin.h" />
+        <source-file src="src/ios/VLCPlugin.m" />
+
+        <framework src="lib/ios/MobileVLCKit.framework" custom="true" />
+        <framework src="MediaPlayer.framework" />
+        <framework src="AudioToolbox.framework" />
+        <framework src="libstdc++.dylib" />
+        <framework src="libbz2.dylib" />
+        <framework src="libiconv.dylib" />
+    </platform>
+</plugin>
