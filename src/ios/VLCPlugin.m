@@ -1,12 +1,12 @@
 //
-//  PRXPlayerPlugin.m
-//  NYPRNative
+//  VLCPlugin.m
 //
 //  Created by Bradford Kammin on 4/2/14.
 //
 //
 #include <objc/runtime.h>
 #import "CDVSound.h"
+#import "CDVReachability.h"
 #import "VLCPlugin.h"
 
 enum NYPRExtraMediaStates {
@@ -49,10 +49,9 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     [self.viewController becomeFirstResponder];
    
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_onRemoteControlEvent:) name:@"RemoteControlEventNotification" object:nil];
-    
-    //[self _create];
- 
+
     NSLog(@"VLC Plugin initialized");
+    NSLog(@"VLC Library Version %@", [[VLCLibrary sharedLibrary] version]);
 }
 
 - (void) _recreate {
@@ -66,8 +65,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     _mediaplayer.delegate = self;
 
     /* listen for notifications from the player */
-    //[_mediaplayer addObserver:self forKeyPath:@"time" options:0 context:nil];
-    [_mediaplayer addObserver:self forKeyPath:@"isPlaying" options:0 context:nil];
+//    [_mediaplayer addObserver:self forKeyPath:@"time" options:0 context:nil];
+//    [_mediaplayer addObserver:self forKeyPath:@"isPlaying" options:0 context:nil];
     //[_mediaplayer.media addObserver:self forKeyPath:@"state" options:0 context:nil];
    
 }
@@ -78,8 +77,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 {
     if (_mediaplayer) {
         @try {
-            //[_mediaplayer removeObserver:self forKeyPath:@"time"];
-            [_mediaplayer removeObserver:self forKeyPath:@"isPlaying"];
+//            [_mediaplayer removeObserver:self forKeyPath:@"time"];
+//            [_mediaplayer removeObserver:self forKeyPath:@"isPlaying"];
             //[_mediaplayer.media removeObserver:self forKeyPath:@"state"];
             
         }
@@ -119,24 +118,22 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     NSDictionary  * params = [command.arguments  objectAtIndex:0];
     NSString* stationUrl = [params objectForKey:@"ios"];
     NSDictionary  * info = [command.arguments  objectAtIndex:1];
+    int prebuffer=10000;
+    NetworkStatus connectionType = [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus];
+    
+    if ( connectionType == ReachableViaWiFi) {
+        prebuffer = 5000;
+    }
     
     if ( stationUrl && stationUrl != (id)[NSNull null] ) {
         NSLog (@"VLC Plugin starting stream (%@)", stationUrl);
-        /* create a media object and give it to the player */
-        if (!_mediaplayer.media) { // no url
+        if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:stationUrl] ]) { // no url or new url
             [self _recreate];
             _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:stationUrl]];
             NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
-            [dictionary setObject:@(10000) forKey:@"network-caching"];
-            [_mediaplayer.media addOptions:dictionary];
-        } else if ( ![_mediaplayer.media.url isEqual:[NSURL URLWithString:stationUrl] ] ) { // new url
-            [self _recreate];
-            _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:stationUrl]];
-            NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
-            [dictionary setObject:@(10000) forKey:@"network-caching"];
+            [dictionary setObject:@(prebuffer) forKey:@"network-caching"];
             [_mediaplayer.media addOptions:dictionary];
         }
-
         [_mediaplayer play];
         [self setaudioinfoInternal:info];
     } else {
@@ -166,17 +163,11 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         
         if([[NSFileManager defaultManager] fileExistsAtPath:fullPathAndFile]){
             NSLog (@"VLC Plugin playing local file (%@)", fullPathAndFile);
-            /* create a media object and give it to the player */
-            if (!_mediaplayer.media) { // no url
-                [self _recreate];
-                _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
-                [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
-            } else if ( ![_mediaplayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ] ) { // new url
+            if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ]) { // no url or new url
                 [self _recreate];
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             }
-            
             [_mediaplayer play];
             [self setaudioinfoInternal:info];
         } else {
@@ -184,7 +175,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         }
         
     }else {
-        NSLog (@"PRXPlayer Plugin invalid file (%@)", fullFilename);
+        NSLog (@"VLC Plugin invalid file (%@)", fullFilename);
         // todo -- handle invalid stream url
     }
     
@@ -218,16 +209,11 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     
     if ( url && url != (id)[NSNull null] ) {
         NSLog (@"VLC Plugin playing remote file (%@)", url);
-        if (!_mediaplayer.media) { // no url
-            [self _recreate];
-            _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
-            [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
-        } else if ( ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ] ) { // new url
+        if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
             [self _recreate];
             _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
             [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
         }
-        
         [_mediaplayer play];
         [self setaudioinfoInternal:info];
     } else {
@@ -265,8 +251,6 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     NSInteger position = [[command.arguments objectAtIndex:0] integerValue];
     
     NSLog (@"VLC seeking to position (%d)", position );
-    //[self _createAudioHandler];
-    //[self->mAudioHandler seekTo:position];
     
     if ([_mediaplayer isSeekable]){
         float seconds=(float)position;
@@ -324,7 +308,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 {
     CDVPluginResult* pluginResult = nil;
     
-    NSLog (@"PRXPlayer Plugin getting audio state");
+    NSLog (@"VLC Plugin getting audio state");
     
     //[self _createAudioHandler];
     //[self->mAudioHandler getAudioState];
@@ -344,47 +328,10 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
 {
-    //
 
     
-    
-    if ( [keyPath isEqualToString:@"state"] ){
-        int kind = [[change objectForKey:@"kind" ] integerValue];
-        NSLog(@"state change--%d", kind);
-
-    } else if ( [keyPath isEqualToString:@"time"] ){
- //       NSLog(@"%@ remaining and %@ elapsed", [[_mediaplayer.media length] stringValue], [[_mediaplayer time] stringValue]);
-        
-        //if ([[_mediaplayer remainingTime] intValue]>0) {
-//            [self _onAudioProgressUpdate:[[_mediaplayer time]intValue] duration:[[_mediaplayer.media length] intValue] available:-1];
-        //}else{
-        //    [self _onAudioProgressUpdate:[[_mediaplayer time]intValue] duration:0 available:-1];
-        //}
-    } else if ( [keyPath isEqualToString:@"isPlaying"]) {
-        NSLog(@"isPlaying detected...%d", [_mediaplayer isPlaying]);
-        VLCMediaPlayerState vlcState = _mediaplayer.state;
-        NSLog(@"current state: %@", VLCMediaPlayerStateToString(vlcState));
-        VLCMediaState vlcMediaState = _mediaplayer.media.state;
-        switch (vlcMediaState){
-            case VLCMediaStateNothingSpecial:
-                NSLog(@"media state=VLCMediaStateNothingSpecial");
-                break;
-            case VLCMediaStateBuffering:
-                NSLog(@"media state=VLCMediaStateBuffering");
-                break;
-            case VLCMediaStatePlaying:
-                NSLog(@"media state=VLCMediaStatePlaying");
-                break;
-            case VLCMediaStateError:
-                NSLog(@"media state=VLCMediaStateError");
-                break;
-            default:
-                NSLog(@"unknown state: %d", vlcMediaState);
-                break;
-        }
-        if ( [_mediaplayer isPlaying] ) {
-            [self _onAudioStreamUpdate:MEDIA_RUNNING description:@"MEDIA_RUNNING"];
-        }
+    if ( [keyPath isEqualToString:@"time"] ){
+        NSLog(@"observeValueForKeyPath %d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue]);
     } else {
         NSLog(@"unknown key observed: %@", keyPath);
     }
@@ -393,13 +340,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)mediaPlayerTimeChanged:(NSNotification *)aNotification {
     [self _onAudioProgressUpdate:[[_mediaplayer time]intValue] duration:[[_mediaplayer.media length] intValue] available:-1];
-    if ( [[_mediaplayer time]intValue] >= [[_mediaplayer.media length] intValue] ) {
-        NSLog(@"time has passed length...");
-    }
-    
-    if ( [[_mediaplayer remainingTime]intValue] >= 0 && [[_mediaplayer.media length] intValue] > 0 ) {
-        NSLog(@"remaining time has expired...");
-    }
+    //NSLog(@"mediaPlayerTimeChanged %d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue]);
 }
 
 - (void)mediaPlayerStateChanged:(NSNotification *)aNotification
@@ -410,36 +351,22 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     NSString * description=@"";
     int state = MEDIA_NONE;
     
-    NSLog(@"State Change: %@", VLCMediaPlayerStateToString(vlcState));
-    
-    switch (vlcMediaState){
-        case VLCMediaStateNothingSpecial:
-            NSLog(@"media state=VLCMediaStateNothingSpecial");
-            break;
-        case VLCMediaStateBuffering:
-            NSLog(@"media state=VLCMediaStateBuffering");
-            break;
-        case VLCMediaStatePlaying:
-            NSLog(@"media state=VLCMediaStatePlaying");
-            break;
-        case VLCMediaStateError:
-            NSLog(@"media state=VLCMediaStateError");
-            break;
-        default:
-            NSLog(@"unknown state: %d", vlcMediaState);
-            break;
-    }
-    
+    NSLog(@"State Change: %@ / %@", VLCMediaPlayerStateToString(vlcState), VLCMediaStateToString(vlcMediaState));
+
     switch (vlcState) {
         case VLCMediaPlayerStateStopped:       //< Player has stopped
             state = MEDIA_STOPPED;
             description = @"MEDIA_STOPPED";
-            if (_mediaplayer /*&& _mediaplayer.media*/) {
-                //NSLog(@"audio stopped. times: %d/%d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue], [[_mediaplayer.media length] intValue]);
+            if (_mediaplayer) {
                 NSLog(@"audio stopped. times: %d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue]);
                 if (_mediaplayer.media ) {
                     NSLog(@"length: %d", [[_mediaplayer.media length] intValue]);
-                    if ([[_mediaplayer.media length] intValue]>0 && [[_mediaplayer remainingTime]intValue]>=0 ) {
+                    // regard track as completed if it ends within 1/2 second of length...
+                    if ([[_mediaplayer.media length] intValue]>0 && [[_mediaplayer remainingTime]intValue]>=-500 ) {
+                        // send final progress update -- the delegate function (mediaPlayerTimeChanged) doesn't seem to fire
+                        // for length:length -- the final call to it is for a time less than the track time, so simulate it here...
+                        [self _onAudioProgressUpdate:[[_mediaplayer.media length]intValue] duration:[[_mediaplayer.media length] intValue] available:-1];
+                        // send complete event
                         [self _onAudioStreamUpdate:MEDIA_COMPLETED description:@"MEDIA_COMPLETED"];
                     }
                 }
@@ -450,8 +377,13 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             description = @"MEDIA_STARTING";
             break;
         case VLCMediaPlayerStateBuffering:      //< Stream is buffering
-            state = MEDIA_STARTING;
-            description = @"MEDIA_STARTING";
+            if ( vlcMediaState == VLCMediaStatePlaying ) {
+                state = MEDIA_RUNNING;
+                description = @"MEDIA_RUNNING";
+            } else {
+                state = MEDIA_STARTING;
+                description = @"MEDIA_STARTING";
+            }
             break;
         case VLCMediaPlayerStateEnded:          //< Stream has ended
             state = MEDIA_COMPLETED;
@@ -475,18 +407,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             break;
     };
     
-    if ( vlcState != VLCMediaPlayerStateBuffering) {
-        [self _onAudioStreamUpdate:state description:description];
-    }
-    /* distruct view controller on error */
-    //if (currentState == VLCMediaPlayerStateError)
-    //    [self performSelector:@selector(closePlayback:) withObject:nil afterDelay:2.];
-    
-    /* or if playback ended */
-    //if (currentState == VLCMediaPlayerStateEnded || currentState == VLCMediaPlayerStateStopped)
-    //    [self performSelector:@selector(closePlayback:) withObject:nil afterDelay:2.];
-    
-    //[self.playPauseButton setTitle:[_mediaplayer isPlaying]? @"Pause" : @"Play" forState:UIControlStateNormal];
+    [self _onAudioStreamUpdate:state description:description];
+
 }
 
 - (void) _onAudioStreamUpdate:(int)state description:(NSString*)description
@@ -496,25 +418,6 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self writeJavascript:jsToRun];
         });
-    
-    /*
-        if([status intValue]==MEDIA_STOPPED){
-            
-            NSDictionary *dict2 = [NSDictionary dictionaryWithObjectsAndKeys:
-                                   0, @"progress",
-                                   0, @"duration"
-                                   , nil];
-            
-            [[NSNotificationCenter defaultCenter]
-             postNotificationName:@"AudioProgressNotification"
-             object:self
-             userInfo:dict2];
-            
-        } else if ([status intValue]==MEDIA_RUNNING){
-            // todo - update lock screen...
-        }
-     */
-    
 }
 
 - (void) _onAudioProgressUpdate:(long) progress duration:(long)duration available:(long)available
@@ -608,6 +511,22 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     }
 }
 
+#pragma mark Misc
+
+NSString* VLCMediaStateToString(VLCMediaState state){
+    switch (state){
+        case VLCMediaStateNothingSpecial:
+            return @"VLCMediaStateNothingSpecial";
+        case VLCMediaStateBuffering:
+            return @"VLCMediaStateBuffering";
+        case VLCMediaStatePlaying:
+            return @"VLCMediaStatePlaying";
+        case VLCMediaStateError:
+            return @"VLCMediaStateError";
+        default:
+           return @"VLCMediaStateUnknown";
+    }
+}
 
 
 
