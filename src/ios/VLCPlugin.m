@@ -4,6 +4,7 @@
 //  Created by Bradford Kammin on 4/2/14.
 //
 //
+#import <MediaPlayer/MediaPlayer.h>
 #include <objc/runtime.h>
 #import "CDVSound.h"
 #import "CDVReachability.h"
@@ -135,7 +136,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             [_mediaplayer.media addOptions:dictionary];
         }
         [_mediaplayer play];
-        [self setaudioinfoInternal:info];
+        [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
     } else {
        NSLog (@"VLC Plugin invalid stream (%@)", stationUrl);
         // todo -- handle invalid stream url
@@ -169,7 +170,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             }
             [_mediaplayer play];
-            [self setaudioinfoInternal:info];
+            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
         } else {
             [self playremotefile:command];
         }
@@ -215,7 +216,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
         }
         [_mediaplayer play];
-        [self setaudioinfoInternal:info];
+        [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
     } else {
         NSLog (@"VLC Plugin invalid remote file (%@)", url);
         // todo -- handle invalid stream url
@@ -281,26 +282,10 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)setaudioinfo:(CDVInvokedUrlCommand*)command{
     NSDictionary  * info = [command.arguments  objectAtIndex:0];
-    [self setaudioinfoInternal:info];
+    [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
 }
 
-- (void)setaudioinfoInternal:(NSDictionary*) info{
-    
-    NSString * title = nil;
-    NSString * artist = nil;
-    NSString * url = nil;
-    
-    title = [info objectForKey:@"title"];
-    artist = [info objectForKey:@"artist"];
-    
-    NSDictionary * artwork = [info objectForKey:@"image"];
-    
-    if (artwork && artwork != (id)[NSNull null]){
-        url = [artwork objectForKey:@"url"];
-    }
-    
-    //[self->mAudioHandler setAudioInfo:title artist:artist artwork:url];
-}
+
 
 #pragma mark Audio playback helper functions
 
@@ -418,6 +403,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [self writeJavascript:jsToRun];
         });
+    [self setMPNowPlayingInfoCenterNowPlayingInfo:nil];
 }
 
 - (void) _onAudioProgressUpdate:(long) progress duration:(long)duration available:(long)available
@@ -426,6 +412,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     dispatch_async(dispatch_get_main_queue(), ^{
         [self writeJavascript:jsToRun];
     });
+    [self setMPNowPlayingInfoCenterNowPlayingInfo:nil];
 }
 
 - (void) _onAudioSkipNext
@@ -525,6 +512,68 @@ NSString* VLCMediaStateToString(VLCMediaState state){
             return @"VLCMediaStateError";
         default:
            return @"VLCMediaStateUnknown";
+    }
+}
+
+#pragma mark Lock Screen Metadata
+
+- (void) setMPNowPlayingInfoCenterNowPlayingInfo:(NSDictionary*)info {
+    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = [self MPNowPlayingInfoCenterNowPlayingInfo:info];
+}
+
+- (NSDictionary*) MPNowPlayingInfoCenterNowPlayingInfo:(NSDictionary*)info {
+    NSMutableDictionary *nowPlaying = [MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo mutableCopy];
+    if (nowPlaying==nil) {
+        nowPlaying = [NSMutableDictionary dictionaryWithCapacity:10];
+    }
+    
+    float _elapsedPlaybackTime = _mediaplayer ? ([[_mediaplayer time]intValue] / 1000): 0.0f;
+    NSNumber* elapsedPlaybackTime = @(_elapsedPlaybackTime);
+    nowPlaying[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedPlaybackTime;
+
+    float _playbackDuration = (_mediaplayer && _mediaplayer.media) ? ([[_mediaplayer.media length]intValue]/1000) : 0.0f;
+    if (_playbackDuration==0.0f){
+        _playbackDuration=_elapsedPlaybackTime;
+    }
+    NSNumber* playbackDuration = @(_playbackDuration);
+    nowPlaying[MPMediaItemPropertyPlaybackDuration] = playbackDuration;
+    
+    if (info!=nil) {
+        if ([info objectForKey:@"title"]!=nil) {
+            nowPlaying[MPMediaItemPropertyTitle] = [info objectForKey:@"title"];
+        }
+        if ([info objectForKey:@"artist"]!=nil) {
+            nowPlaying[MPMediaItemPropertyArtist] = [info objectForKey:@"artist"];
+        }
+        
+        NSDictionary * artwork = [info objectForKey:@"image"];
+        if (artwork && artwork != (id)[NSNull null] && [artwork objectForKey:@"url"] != nil){
+            NSString * url = [artwork objectForKey:@"url"];
+            [self performSelectorInBackground:@selector(loadLockscreenImage:) withObject:url]; // load in background to avoid screen lag
+        }
+        
+        if ([info objectForKey:@"lockscreen-art"]!=nil) {
+            nowPlaying[MPMediaItemPropertyArtwork] = [info objectForKey:@"lockscreen-art"];
+        }
+        
+    }
+    return nowPlaying;
+}
+
+- (void)loadLockscreenImage:(NSString*)artwork
+{
+    if ( [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus] != NotReachable) {
+        NSLog(@"Retrieving lock screen art...");
+        NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:artwork]];
+        UIImage *img = [[UIImage alloc] initWithData:data];
+        if (img){
+            NSLog(@"Creating MPMediaItemArtwork...");
+            MPMediaItemArtwork * art = [[MPMediaItemArtwork alloc] initWithImage: img];
+            [self setMPNowPlayingInfoCenterNowPlayingInfo:@{@"lockscreen-art": art}];
+        }
+        NSLog(@"Done retrieving lock screen art.");
+    }else{
+        NSLog(@"Offline - not retrieving lock screen art");
     }
 }
 

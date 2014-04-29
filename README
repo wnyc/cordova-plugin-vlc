@@ -1,5 +1,4 @@
 TODO:
 
-audio progress updates stop firing when device enters airplane mode. in addition, the stop event doesn't always fire when the buffer empties.
+audio progress updates stop firing when device enters airplane mode, and the stop event doesn't always fire when the buffer empties.
 
-lock screen metadata. remote controls on lock screen disapear after pause pressed - should stay visible so play can be pressed. hopefully this will be fixed by configuring lockscreen metadata.
