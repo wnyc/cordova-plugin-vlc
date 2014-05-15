@@ -13,9 +13,13 @@
 
 @interface VLCPlugin : CDVPlugin
 {
-  VLCMediaPlayer *_mediaplayer;
+    VLCMediaPlayer *_mediaplayer;
+    
+    NSString * _callbackId;
+    NSDictionary * _audio;
 }
 
+- (void)init:(CDVInvokedUrlCommand*)command;
 - (void)getaudiostate:(CDVInvokedUrlCommand*)command;
 - (void)playstream:(CDVInvokedUrlCommand*)command;
 - (void)playremotefile:(CDVInvokedUrlCommand*)command;
