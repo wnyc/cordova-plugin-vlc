@@ -179,7 +179,12 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 - (void)_playstream:(NSString*)url info:(NSDictionary*)info {
     NSLog (@"VLC Plugin starting stream (%@)", url);
     
-    if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
+    VLCMediaPlayerState vlcState = _mediaplayer.state;
+    VLCMediaState vlcMediaState = _mediaplayer.media.state;
+    
+    NSLog(@"%@ / %@", VLCMediaPlayerStateToString(vlcState), VLCMediaStateToString(vlcMediaState));
+    
+    if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ] || vlcState==VLCMediaPlayerStateStopped) { // no url or new url
         int prebuffer=10000;
         NetworkStatus connectionType = [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus];
         
