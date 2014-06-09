@@ -4,6 +4,7 @@
 //  Created by Bradford Kammin on 4/2/14.
 //
 //
+#import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
 #include <objc/runtime.h>
 #import "CDVSound.h"
@@ -58,6 +59,9 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_onLocalNotification:) name:CDVLocalNotification object:nil]; // if app is in foreground
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_onUIApplicationDidFinishLaunchingNotification:) name:@"UIApplicationDidFinishLaunchingNotification" object:nil]; // if app is not in foreground or not running
 
+    [AVAudioSession sharedInstance];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_audioRouteChangeListenerCallback:) name:AVAudioSessionRouteChangeNotification object:nil];
+    
     NSLog(@"VLC Plugin initialized");
     NSLog(@"VLC Library Version %@", [[VLCLibrary sharedLibrary] version]);
 }
@@ -119,6 +123,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     [[NSNotificationCenter defaultCenter] removeObserver:self name:CDVLocalNotification object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidFinishLaunchingNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"RemoteControlEventNotification" object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVAudioSessionRouteChangeNotification object:nil];
     
     if ([[UIApplication sharedApplication] respondsToSelector:@selector(endReceivingRemoteControlEvents)]){
       [[UIApplication sharedApplication] endReceivingRemoteControlEvents];
@@ -150,8 +155,13 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     NSDictionary  * info = [command.arguments  objectAtIndex:1];
     
     if ( url && url != (id)[NSNull null] ) {
-        [self _playstream:url info:info];
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
+            [self _playstream:url info:info];
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        } else {
+            NSLog (@"VLC Plugin internet not reachable");
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no connection"];
+        }
     } else {
         NSLog (@"VLC Plugin invalid stream (%@)", url);
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid stream url"];
@@ -252,15 +262,20 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     }
     
     if ( url && url != (id)[NSNull null] ) {
-        NSLog (@"VLC Plugin playing remote file (%@)", url);
-        if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
-            [self _recreate];
-            _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
-            [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
+        if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
+            NSLog (@"VLC Plugin playing remote file (%@)", url);
+            if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
+                [self _recreate];
+                _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
+                [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
+            }
+            [_mediaplayer play];
+            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        } else {
+            NSLog (@"VLC Plugin internet not reachable");
+            pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no connection"];
         }
-        [_mediaplayer play];
-        [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     } else {
         NSLog (@"VLC Plugin invalid remote file (%@)", url);
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid remote file url"];
@@ -697,6 +712,33 @@ NSString* VLCMediaStateToString(VLCMediaState state){
                 }
             }
         }
+    }
+}
+
+#pragma mark Headphone handler
+- (void)_audioRouteChangeListenerCallback:(NSNotification*)notification
+{
+    NSDictionary *interuptionDict = notification.userInfo;
+    
+    NSInteger routeChangeReason = [[interuptionDict valueForKey:AVAudioSessionRouteChangeReasonKey] integerValue];
+    
+    switch (routeChangeReason) {
+            
+        case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
+            NSLog(@"AVAudioSessionRouteChangeReasonNewDeviceAvailable");
+            NSLog(@"Headphone/Line plugged in");
+            break;
+            
+        case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
+            NSLog(@"AVAudioSessionRouteChangeReasonOldDeviceUnavailable");
+            NSLog(@"Headphone/Line was pulled. Stopping player....");
+            [_mediaplayer pause];
+            break;
+            
+        case AVAudioSessionRouteChangeReasonCategoryChange:
+            // called at start - also when other audio wants to play
+            NSLog(@"AVAudioSessionRouteChangeReasonCategoryChange");
+            break;
     }
 }
 
