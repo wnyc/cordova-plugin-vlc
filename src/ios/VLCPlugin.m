@@ -91,15 +91,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 }
 
 - (void) _create {
-    
     _mediaplayer = [[VLCMediaPlayer alloc] init];
     _mediaplayer.delegate = self;
-
-    /* listen for notifications from the player */
-//    [_mediaplayer addObserver:self forKeyPath:@"time" options:0 context:nil];
-//    [_mediaplayer addObserver:self forKeyPath:@"isPlaying" options:0 context:nil];
-    //[_mediaplayer.media addObserver:self forKeyPath:@"state" options:0 context:nil];
-   
 }
 
 #pragma mark Cleanup
@@ -107,15 +100,6 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 -(void) _teardown
 {
     if (_mediaplayer) {
-        @try {
-//            [_mediaplayer removeObserver:self forKeyPath:@"time"];
-//            [_mediaplayer removeObserver:self forKeyPath:@"isPlaying"];
-            //[_mediaplayer.media removeObserver:self forKeyPath:@"state"];
-            
-        }
-        @catch (NSException *exception) {
-            NSLog(@"we weren't an observer yet");
-        }
 
         if (_mediaplayer.media) {
             [_mediaplayer stop];
@@ -392,6 +376,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     int state = MEDIA_NONE;
     
     NSLog(@"State Change: %@ / %@", VLCMediaPlayerStateToString(vlcState), VLCMediaStateToString(vlcMediaState));
+    
+    [self _clearFlushBufferTimer];
 
     switch (vlcState) {
         case VLCMediaPlayerStateStopped:       //< Player has stopped
@@ -440,6 +426,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         case VLCMediaPlayerStatePaused:          //< Stream is paused
             state = MEDIA_PAUSED;
             description = @"MEDIA_PAUSED";
+            [self _setFlushBufferTimer];
             break;
         default:
             state = MEDIA_NONE;
@@ -571,6 +558,23 @@ NSString* VLCMediaStateToString(VLCMediaState state){
         default:
            return @"VLCMediaStateUnknown";
     }
+}
+
+- (void) _setFlushBufferTimer {
+    _flushBufferTimer = [NSTimer scheduledTimerWithTimeInterval: 60
+                                              target: self
+                                            selector: @selector(_flushBuffer)
+                                            userInfo: nil
+                                             repeats: NO];
+}
+
+- (void) _flushBuffer {
+    NSLog(@"Flushing buffer....");
+    [_mediaplayer stop];
+}
+
+- (void) _clearFlushBufferTimer {
+    [_flushBufferTimer invalidate];
 }
 
 #pragma mark Lock Screen Metadata

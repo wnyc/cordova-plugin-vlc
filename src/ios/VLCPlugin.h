@@ -17,6 +17,7 @@
     
     NSString * _callbackId;
     NSDictionary * _audio;
+    NSTimer * _flushBufferTimer;
 }
 
 - (void)init:(CDVInvokedUrlCommand*)command;
