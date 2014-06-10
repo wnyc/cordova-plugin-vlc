@@ -61,6 +61,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
     [AVAudioSession sharedInstance];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_audioRouteChangeListenerCallback:) name:AVAudioSessionRouteChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_audioInterruption:) name:AVAudioSessionInterruptionNotification object:[AVAudioSession sharedInstance]];
     
     NSLog(@"VLC Plugin initialized");
     NSLog(@"VLC Library Version %@", [[VLCLibrary sharedLibrary] version]);
@@ -124,6 +125,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"UIApplicationDidFinishLaunchingNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:@"RemoteControlEventNotification" object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVAudioSessionRouteChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self name:AVAudioSessionInterruptionNotification object:[AVAudioSession sharedInstance]];
     
     if ([[UIApplication sharedApplication] respondsToSelector:@selector(endReceivingRemoteControlEvents)]){
       [[UIApplication sharedApplication] endReceivingRemoteControlEvents];
@@ -721,7 +723,7 @@ NSString* VLCMediaStateToString(VLCMediaState state){
     NSDictionary *interuptionDict = notification.userInfo;
     
     NSInteger routeChangeReason = [[interuptionDict valueForKey:AVAudioSessionRouteChangeReasonKey] integerValue];
-    
+
     switch (routeChangeReason) {
             
         case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
@@ -742,5 +744,15 @@ NSString* VLCMediaStateToString(VLCMediaState state){
     }
 }
 
+- (void)_audioInterruption:(NSNotification*)notification
+{
+    AVAudioSessionInterruptionType interruptionType = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+    if (AVAudioSessionInterruptionTypeBegan == interruptionType) {
+        [_mediaplayer pause];
+    }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
+    }
+}
 
 @end
+
+
