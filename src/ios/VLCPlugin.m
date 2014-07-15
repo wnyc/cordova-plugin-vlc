@@ -681,38 +681,50 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 -(void)_playStreamFromLocalNotification:(UILocalNotification*)localNotification {
     NSString * notificationType = [[localNotification userInfo] objectForKey:@"type"];
     
+    
     if ( notificationType!=nil && [notificationType isEqualToString:@"wakeup"]) {
         NSLog(@"wakeup detected!");
         
-        NSString * s = [[localNotification userInfo] objectForKey:@"extra"];
-        NSError *error;
-        NSData *data = [s dataUsingEncoding:NSUTF8StringEncoding];
-        NSDictionary *extra = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+        if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
+            NSString * s = [[localNotification userInfo] objectForKey:@"extra"];
+            NSError *error;
+            NSData *data = [s dataUsingEncoding:NSUTF8StringEncoding];
+            NSDictionary *extra = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
         
-        if (extra!=nil){
-            NSDictionary  * streams = [extra objectForKey:@"streams"];
-            NSDictionary  * info = [extra objectForKey:@"info"];
-            NSDictionary  * audio = [extra objectForKey:@"audio"];
-            NSString* url = nil;
+            if (extra!=nil){
+                NSDictionary  * streams = [extra objectForKey:@"streams"];
+                NSDictionary  * info = [extra objectForKey:@"info"];
+                NSDictionary  * audio = [extra objectForKey:@"audio"];
+                NSString* url = nil;
             
-            if (streams) {
-                url=[streams objectForKey:@"ios"];
-                if (url!=nil) {
-                    [self _playstream:url info:info];
+                if (streams) {
+                    url=[streams objectForKey:@"ios"];
+                    if (url!=nil) {
+                        [self _playstream:url info:info];
                     
-                    if (_callbackId!=nil && audio!=nil) {
-                        NSDictionary * o = @{ @"type" : @"current",
-                                              @"audio" : audio};
+                        if (_callbackId!=nil && audio!=nil) {
+                            NSDictionary * o = @{ @"type" : @"current",
+                                                @"audio" : audio};
                         
-                        CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
-                        [self _sendPluginResult:pluginResult callbackId:_callbackId];
+                            CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
+                            [self _sendPluginResult:pluginResult callbackId:_callbackId];
                         
-                        _audio = nil;
-                    } else {
-                        _audio = audio; // send this when callback is available
+                            _audio = nil;
+                        } else {
+                            _audio = audio; // send this when callback is available
+                        }
                     }
                 }
             }
+        } else {
+            NSLog(@"VLC wakeup - cannot play stream due to no connection");
+           // NSURL *resourceURLString = [[NSBundle mainBundle] resourceURL];
+            //NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@snooze.mp3",resourceURLString]]; // pass this in as configuration setting...
+            //[self _recreate];
+            //_mediaplayer.media = [VLCMedia mediaWithURL:url];
+            //[_mediaplayer play];
+//            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+            
         }
     }
 }
@@ -734,7 +746,9 @@ NSString* VLCMediaStateToString(VLCMediaState state){
         case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
             NSLog(@"AVAudioSessionRouteChangeReasonOldDeviceUnavailable");
             NSLog(@"Headphone/Line was pulled. Stopping player....");
-            [_mediaplayer pause];
+            if([_mediaplayer isPlaying]) {
+                [_mediaplayer pause];
+            }
             break;
             
         case AVAudioSessionRouteChangeReasonCategoryChange:
