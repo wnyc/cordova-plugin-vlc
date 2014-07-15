@@ -761,9 +761,14 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 - (void)_audioInterruption:(NSNotification*)notification
 {
     AVAudioSessionInterruptionType interruptionType = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+    NSNumber *interruptionOption = [[notification userInfo] objectForKey:AVAudioSessionInterruptionOptionKey];
+
     if (AVAudioSessionInterruptionTypeBegan == interruptionType) {
         [_mediaplayer pause];
     }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
+        if (interruptionOption.unsignedIntegerValue == AVAudioSessionInterruptionOptionShouldResume) {
+            [_mediaplayer play];
+        }
     }
 }
 
