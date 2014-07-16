@@ -681,15 +681,15 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 -(void)_playStreamFromLocalNotification:(UILocalNotification*)localNotification {
     NSString * notificationType = [[localNotification userInfo] objectForKey:@"type"];
     
-    
     if ( notificationType!=nil && [notificationType isEqualToString:@"wakeup"]) {
         NSLog(@"wakeup detected!");
         
+        NSString * s = [[localNotification userInfo] objectForKey:@"extra"];
+        NSError *error;
+        NSData *data = [s dataUsingEncoding:NSUTF8StringEncoding];
+        NSDictionary *extra = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+        
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
-            NSString * s = [[localNotification userInfo] objectForKey:@"extra"];
-            NSError *error;
-            NSData *data = [s dataUsingEncoding:NSUTF8StringEncoding];
-            NSDictionary *extra = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
         
             if (extra!=nil){
                 NSDictionary  * streams = [extra objectForKey:@"streams"];
@@ -718,13 +718,14 @@ NSString* VLCMediaStateToString(VLCMediaState state){
             }
         } else {
             NSLog(@"VLC wakeup - cannot play stream due to no connection");
-           // NSURL *resourceURLString = [[NSBundle mainBundle] resourceURL];
-            //NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@snooze.mp3",resourceURLString]]; // pass this in as configuration setting...
-            //[self _recreate];
-            //_mediaplayer.media = [VLCMedia mediaWithURL:url];
-            //[_mediaplayer play];
-//            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
-            
+            if (extra!=nil) {
+                NSString  * sound = [extra objectForKey:@"offline_sound"];
+                NSURL *resourceURLString = [[NSBundle mainBundle] resourceURL];
+                NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"%@%@",resourceURLString, sound]];
+                [self _recreate];
+                _mediaplayer.media = [VLCMedia mediaWithURL:url];
+                [_mediaplayer play];
+            }
         }
     }
 }
@@ -761,14 +762,9 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 - (void)_audioInterruption:(NSNotification*)notification
 {
     AVAudioSessionInterruptionType interruptionType = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
-    NSNumber *interruptionOption = [[notification userInfo] objectForKey:AVAudioSessionInterruptionOptionKey];
-
     if (AVAudioSessionInterruptionTypeBegan == interruptionType) {
         [_mediaplayer pause];
     }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
-        if (interruptionOption.unsignedIntegerValue == AVAudioSessionInterruptionOptionShouldResume) {
-            [_mediaplayer play];
-        }
     }
 }
 
