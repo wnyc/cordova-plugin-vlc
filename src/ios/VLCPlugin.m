@@ -453,6 +453,9 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     
     [self _onAudioStreamUpdate:state description:description];
 
+    // VLC disables the idle timer which controls automatic screen-locking whenever audio/video is playing. re-enable it here, since we are playing audio and disabling automatic
+    // screen-locking is more appropriate for video.
+    [UIApplication sharedApplication].idleTimerDisabled = NO;
 }
 
 - (void) _onAudioStreamUpdate:(int)state description:(NSString*)description
