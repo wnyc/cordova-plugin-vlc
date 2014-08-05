@@ -454,14 +454,14 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     };
     
     [self _onAudioStreamUpdate:state description:description];
-
-    if ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateUnplugged) {
+    
+    if ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull ) {
+        // device is charging - disable automatic screen-locking
+        [UIApplication sharedApplication].idleTimerDisabled = YES;
+    } else {
         // VLC disables the idle timer which controls automatic screen-locking whenever audio/video is playing. re-enable it here, since we are playing audio and disabling automatic
         // screen-locking is more appropriate for video.
         [UIApplication sharedApplication].idleTimerDisabled = NO;
-    } else {
-        // device is charging - disable automatic screen-locking
-        [UIApplication sharedApplication].idleTimerDisabled = YES;
     }
 }
 
