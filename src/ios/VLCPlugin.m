@@ -270,7 +270,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
             NSLog (@"VLC Plugin playing remote file (%@)", url);
-            if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
+            if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ] || _mediaplayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
                 [self _recreate];
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
