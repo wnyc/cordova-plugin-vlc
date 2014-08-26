@@ -224,6 +224,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
                 [self _recreate];
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
+            } else if(_mediaplayer.state != VLCMediaPlayerStatePaused) {
+                [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             }
             [_mediaplayer play];
             [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
@@ -271,6 +273,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ]) { // no url or new url
                 [self _recreate];
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
+                [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
+            } else if(_mediaplayer.state != VLCMediaPlayerStatePaused) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             }
             [_mediaplayer play];
@@ -383,7 +387,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)mediaPlayerTimeChanged:(NSNotification *)aNotification {
     [self _onAudioProgressUpdate:[[_mediaplayer time]intValue] duration:[[_mediaplayer.media length] intValue] available:-1];
-    //NSLog(@"mediaPlayerTimeChanged %d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue]);
+    //NSLog(@"mediaPlayerTimeChanged %d/%d/%d", [[_mediaplayer time]intValue], [[_mediaplayer remainingTime]intValue], [[_mediaplayer.media length] intValue]);
 }
 
 - (void)mediaPlayerStateChanged:(NSNotification *)aNotification
