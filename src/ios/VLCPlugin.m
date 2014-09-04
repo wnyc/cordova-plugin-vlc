@@ -276,6 +276,8 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             } else if(_mediaplayer.state != VLCMediaPlayerStatePaused) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
+            } else {
+                [_mediaplayer.media addOptions:@{@"start-time": @(position-1)}];
             }
             [_mediaplayer play];
             [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
