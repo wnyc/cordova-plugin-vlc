@@ -1,4 +1,23 @@
-TODO:
+# notes compiling mobilevlckit for ios
+# reference: https://wiki.videolan.org/VLCKit/#Building_the_framework_for_iOS
 
-audio progress updates stop firing when device enters airplane mode, and the stop event doesn't always fire when the buffer empties.
+# clone the VLCKit repo
+git clone git://git.videolan.org/vlc-bindings/VLCKit.git
 
+cd VLCKit
+
+# build the library for devices
+./buildMobileVLCKit.sh
+
+# wait a long time...
+
+# build the library for the simulator
+./buildMobileVLCKit.sh -s
+
+# wait again...
+
+# build the framework...
+./buildMobileVLCKit.sh -f
+ 
+# the resulting framework to be used in your project:
+./build/MobileVLCKit.framework/  
