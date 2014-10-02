@@ -71,7 +71,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)init:(CDVInvokedUrlCommand*)command {
     
-    NSLog (@"PRXPlayer Plugin init");
+    NSLog (@"VLC Plugin init");
     
     CDVPluginResult* pluginResult = nil;
     
@@ -676,7 +676,7 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 
 - (void)_onLocalNotification:(NSNotification *)notification
 {
-    NSLog(@"PRXPlayer Plugin received local notification while app is running");
+    NSLog(@"VLC Plugin received local notification while app is running");
     
     UILocalNotification* localNotification = [notification object];
     
@@ -685,7 +685,6 @@ NSString* VLCMediaStateToString(VLCMediaState state){
 
 
 -(void)_onUIApplicationDidFinishLaunchingNotification:(NSNotification*)notification {
-    NSLog(@"PRXPlayer Plugin received local notification after launch invoked by clicking on notification");
     
     NSDictionary *userInfo = [notification userInfo] ;
     UILocalNotification *localNotification = [userInfo objectForKey: @"UIApplicationLaunchOptionsLocalNotificationKey"];
