@@ -10,8 +10,12 @@
     <keywords>audio,stream,radio</keywords>
     <repo>git@git.wnyc.net:mobile/cordova/cordova-plugin-vlc.git</repo>
 
-    <!-- ios -->
-    <platform name="ios">
+  <js-module src="www/audioplayer.js" name="AudioPlayer">
+    <clobbers target="audioplayer"/>
+  </js-module>
+
+  <!-- ios -->
+  <platform name="ios">
         <config-file target="config.xml" parent="/*">
             <feature name="AudioPlayerPlugin">
                 <param name="ios-package" value="VLCPlugin" />
