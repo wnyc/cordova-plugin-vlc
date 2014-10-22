@@ -191,10 +191,10 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
         [dictionary setObject:@(prebuffer) forKey:@"network-caching"];
         [_mediaplayer.media addOptions:dictionary];
+        
     }
-    
     [_mediaplayer play];
-    [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+    [self _setlockscreenmetadata:info refreshLockScreen:false];
 }
 
 - (void)playfile:(CDVInvokedUrlCommand*)command
@@ -223,7 +223,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             }
             [_mediaplayer play];
-            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+            [self _setlockscreenmetadata:info refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
             
         } else {
@@ -274,7 +274,7 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
                 [_mediaplayer.media addOptions:@{@"start-time": @(position-1)}];
             }
             [_mediaplayer play];
-            [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+            [self _setlockscreenmetadata:info refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
             NSLog (@"VLC Plugin internet not reachable");
@@ -296,9 +296,9 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     if ([_mediaplayer isSeekable]){
         NSLog (@"VLC Plugin seeking to interval (%d)", interval );
         if (interval>0){
-            [_mediaplayer jumpForward:(interval/1000)];
+            [_mediaplayer jumpForward:((int)interval/1000)];
         }else{
-            [_mediaplayer jumpBackward:(-1*interval/1000)];
+            [_mediaplayer jumpBackward:(-1*(int)interval/1000)];
         }
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     } else {
@@ -345,7 +345,14 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 
 - (void)setaudioinfo:(CDVInvokedUrlCommand*)command{
     NSDictionary  * info = [command.arguments  objectAtIndex:0];
-    [self setMPNowPlayingInfoCenterNowPlayingInfo:info];
+    [self _setlockscreenmetadata:info refreshLockScreen:true];
+}
+
+- (void)_setlockscreenmetadata:(NSDictionary*)metadata refreshLockScreen:(BOOL)refreshLockScreen {
+    _lockScreenCache = [NSDictionary dictionaryWithDictionary:metadata];
+    if(refreshLockScreen){
+        [self setMPNowPlayingInfoCenterNowPlayingInfo:_lockScreenCache];
+    }
 }
 
 #pragma mark Audio playback helper functions
@@ -453,6 +460,10 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
             break;
     };
     
+    if(state==MEDIA_RUNNING) {
+        [self setMPNowPlayingInfoCenterNowPlayingInfo:_lockScreenCache];
+    }
+    
     [self _onAudioStreamUpdate:state description:description];
     
     if ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull ) {
@@ -479,9 +490,9 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
 - (void) _onAudioProgressUpdate:(long) progress duration:(long)duration available:(long)available
 {
     NSDictionary * o = @{ @"type" : @"progress",
-                          @"progress" : [NSNumber numberWithInt:progress] ,
-                          @"duration" : [NSNumber numberWithInt:duration],
-                          @"available" : [NSNumber numberWithInt:available]};
+                          @"progress" : [NSNumber numberWithInt:(int)progress] ,
+                          @"duration" : [NSNumber numberWithInt:(int)duration],
+                          @"available" : [NSNumber numberWithInt:(int)available]};
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
     [self _sendPluginResult:pluginResult callbackId:_callbackId];
@@ -631,6 +642,7 @@ NSString* VLCMediaStateToString(VLCMediaState state){
         if ([info objectForKey:@"title"]!=nil) {
             nowPlaying[MPMediaItemPropertyTitle] = [info objectForKey:@"title"];
         }
+        
         if ([info objectForKey:@"artist"]!=nil) {
             nowPlaying[MPMediaItemPropertyArtist] = [info objectForKey:@"artist"];
         }
