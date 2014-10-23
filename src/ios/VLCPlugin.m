@@ -180,6 +180,12 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
     NSLog(@"%@ / %@", VLCMediaPlayerStateToString(vlcState), VLCMediaStateToString(vlcMediaState));
     
     if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ] || vlcState==VLCMediaPlayerStateStopped || vlcState==VLCMediaPlayerStateError) { // no url or new url
+        if(_mediaplayer.state == VLCMediaPlayerStatePaused) {
+            // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+            // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+            [_mediaplayer stop];
+        }
+        
         int prebuffer=10000;
         NetworkStatus connectionType = [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus];
         
@@ -217,6 +223,11 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         if([[NSFileManager defaultManager] fileExistsAtPath:fullPathAndFile]){
             NSLog (@"VLC Plugin playing local file (%@)", fullPathAndFile);
             if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ]) { // no url or new url
+                if(_mediaplayer.state == VLCMediaPlayerStatePaused) {
+                    // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                    // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                    [_mediaplayer stop];
+                }
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             } else if(_mediaplayer.state != VLCMediaPlayerStatePaused) {
@@ -266,6 +277,11 @@ void remoteControlReceivedWithEventImp(id self, SEL _cmd, UIEvent * event) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
             NSLog (@"VLC Plugin playing remote file (%@)", url);
             if (!_mediaplayer.media || ![_mediaplayer.media.url isEqual:[NSURL URLWithString:url] ] || _mediaplayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
+                if(_mediaplayer.state == VLCMediaPlayerStatePaused) {
+                    // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                    // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                    [_mediaplayer stop];
+                }
                 _mediaplayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
                 [_mediaplayer.media addOptions:@{@"start-time": @(position)}];
             } else if(_mediaplayer.state != VLCMediaPlayerStatePaused) {
