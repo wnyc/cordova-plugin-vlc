@@ -20,7 +20,7 @@ echo 'Creating embedded framework...'
 ./buildMobileVLCKit.sh -f
 
 echo 'Moving embedded framework to plugin directory...'
-mv build/MobileVLCKit.framework ../src/ios/MobileVLCKit.framework
+mv build/MobileVLCKit.framework ../lib/ios/MobileVLCKit.framework
 
 echo 'Finished! Do not forget to commit and push to master.'
 
