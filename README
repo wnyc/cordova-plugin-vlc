@@ -19,7 +19,7 @@ VLC references:
 ## Installation
 
 #### Automatic Installation using PhoneGap/Cordova CLI (iOS and Android)
-1. For iOS, make sure you update your projects to Cordova iOS version 3.5.0+ before installing this plugin.
+1. Make sure you update your projects to Cordova iOS version 3.5.0+ before installing this plugin.
 
         cordova platform update ios
         cordova platform update android
