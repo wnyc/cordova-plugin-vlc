@@ -149,4 +149,4 @@ https://wiki.videolan.org/AndroidCompile
 
 ## Building the VLC framework
 
-To build the VLC framework for iOS, execute ./build_vlc_ios.sh. This will build the framework (including any custom patches in patches/ios) and copy it to lib/ios and subsequently install it with the iOS plugin.
+To build the VLC framework for iOS, execute ./build_vlc_ios.sh. This will build the framework (including any custom patches in patches/ios) and copy it to lib/ios.
