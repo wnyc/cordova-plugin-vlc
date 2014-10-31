@@ -25,8 +25,9 @@
 
         <header-file src="src/ios/VLCPlugin.h" />
         <source-file src="src/ios/VLCPlugin.m" />
-
+        <!--
         <framework src="lib/ios/MobileVLCKit.framework" custom="true" />
+        -->
         <framework src="MediaPlayer.framework" />
         <framework src="AudioToolbox.framework" />
         <framework src="libstdc++.dylib" />

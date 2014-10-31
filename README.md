@@ -28,6 +28,9 @@ https://wiki.videolan.org/AndroidCompile
 
         cordova local plugin add https://github.com/wnyc/cordova-plugin-vlc.git
 
+3. Add the MobileVLCKit.framework to project. This currently has to be done manually due to file size limits on GitHub. I'm working on a solution to automate. See notes below for building MobileVLCKit.framework.
+
+
 ## Usage
 
     // all responses from the audio player are channeled through successCallback and errorCallback
