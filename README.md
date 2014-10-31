@@ -10,7 +10,7 @@ This plugin is meant to work with Cordova 3.5.0+ and the VLC library for iOS.
 
 At this time, only iOS is supported.
 
-VLC references:
+VLC references:  
 https://wiki.videolan.org/VLCKit/  
 https://wiki.videolan.org/IOSCompile/  
 https://wiki.videolan.org/VLC_command-line_help  
