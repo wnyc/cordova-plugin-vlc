@@ -4,7 +4,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     id="org.nypr.cordova.vlcplugin"
     version="0.1.0">
-    <name>Device</name>
+    <name>AudioPlayer</name>
     <description>VLC Plugin</description>
     <license>Apache 2.0</license>
     <keywords>audio,stream,radio</keywords>
@@ -14,6 +14,9 @@
     <clobbers target="audioplayer"/>
   </js-module>
 
+  <dependency id="org.apache.cordova.device" />
+  <dependency id="org.apache.cordova.media" />
+
   <!-- ios -->
   <platform name="ios">
         <config-file target="config.xml" parent="/*">
@@ -22,6 +25,8 @@
                 <param name="onload" value="true" />
             </feature>
         </config-file>
+
+        <hook type="after_plugin_install" src="scripts/afterIOSInstall.js" />
 
         <header-file src="src/ios/VLCPlugin.h" />
         <source-file src="src/ios/VLCPlugin.m" />
