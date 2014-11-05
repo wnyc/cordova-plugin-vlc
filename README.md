@@ -6,7 +6,7 @@ This plugin supports PhoneGap/Cordova apps running on both iOS and Android.
 
 ### Version Requirements
 
-This plugin is meant to work with Cordova 3.5.0+ and the VLC library for iOS.
+This plugin is meant to work with Cordova 4.0+ and the VLC library for iOS.
 
 At this time, only iOS is supported.
 
@@ -14,22 +14,18 @@ VLC references:
 https://wiki.videolan.org/VLCKit/  
 https://wiki.videolan.org/IOSCompile/  
 https://wiki.videolan.org/VLC_command-line_help  
-https://wiki.videolan.org/AndroidCompile  
+https://wiki.videolan.org/AndroidCompile (for future reference) 
 
 ## Installation
 
-#### Automatic Installation using PhoneGap/Cordova CLI (iOS and Android)
-1. Make sure you update your projects to Cordova iOS version 3.5.0+ before installing this plugin.
+#### Automatic Installation using PhoneGap/Cordova CLI (iOS)
+1. Make sure you update your projects to Cordova iOS version 4.0+ before installing this plugin.
 
         cordova platform update ios
-        cordova platform update android
 
-2. Install this plugin using PhoneGap/Cordova cli:
+2. Install this plugin using PhoneGap/Cordova cli (requires the VLC_FRAMEWORK_LOCATION environment variable to load VLC framework from local file system):
 
-        cordova local plugin add https://github.com/wnyc/cordova-plugin-vlc.git
-
-3. Add the MobileVLCKit.framework to project. This currently has to be done manually due to file size limits on GitHub. I'm working on a solution to automate. See notes below for building MobileVLCKit.framework.
-
+        VLC_FRAMEWORK_LOCATION="~/MobileVLCKit.framework" cordova plugin add https://github.com/wnyc/cordova-plugin-vlc.git
 
 ## Usage
 
@@ -149,4 +145,5 @@ https://wiki.videolan.org/AndroidCompile
 
 ## Building the VLC framework
 
-To build the VLC framework for iOS, execute ./build_vlc_ios.sh. This will build the framework (including any custom patches in patches/ios) and copy it to lib/ios and subsequently install it with the iOS plugin.
+To build the VLC framework for iOS, execute ./build_vlc_ios.sh
+

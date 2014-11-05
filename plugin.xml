@@ -6,9 +6,8 @@
     version="0.1.0">
     <name>AudioPlayer</name>
     <description>VLC Plugin</description>
-    <license>Apache 2.0</license>
     <keywords>audio,stream,radio</keywords>
-    <repo>git@git.wnyc.net:mobile/cordova/cordova-plugin-vlc.git</repo>
+    <repo>https://github.com/wnyc/cordova-plugin-vlc.git</repo>
 
   <js-module src="www/audioplayer.js" name="AudioPlayer">
     <clobbers target="audioplayer"/>
@@ -16,6 +15,7 @@
 
   <dependency id="org.apache.cordova.device" />
   <dependency id="org.apache.cordova.media" />
+  <dependency id="org.apache.cordova.network-information" />
 
   <!-- ios -->
   <platform name="ios">
@@ -30,11 +30,14 @@
 
         <header-file src="src/ios/VLCPlugin.h" />
         <source-file src="src/ios/VLCPlugin.m" />
-        <!--
-        <framework src="lib/ios/MobileVLCKit.framework" custom="true" />
-        -->
+
         <framework src="MediaPlayer.framework" />
         <framework src="AudioToolbox.framework" />
+        <framework src="CFNetwork.framework" />
+        <framework src="CoreText.framework" />
+        <framework src="QuartzCore.framework" />
+        <framework src="OpenGLES.framework" />
+        <framework src="Security.framework" />
         <framework src="libstdc++.dylib" />
         <framework src="libbz2.dylib" />
         <framework src="libiconv.dylib" />

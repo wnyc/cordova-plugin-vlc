@@ -1,5 +1,10 @@
 module.exports = function(context) {
-  console.log('JS - after ios install - starting');
+  console.log('Installing VLC Framework To iOS Project');
+
+  var util = context.requireCordovaModule("cordova-lib/src/cordova/util");
+  var parser = context.requireCordovaModule('cordova-lib/src/configparser/ConfigParser');
+  var xml = util.projectConfig(context.opts.projectRoot);
+  var config = new parser(xml);
 
   var xcode = context.requireCordovaModule('xcode');
   var shell = context.requireCordovaModule('shelljs');
@@ -7,26 +12,33 @@ module.exports = function(context) {
   var path = context.requireCordovaModule('path');
 
   var projectPath = context.opts.projectRoot + '/platforms/ios/';
-  var id = context.opts.plugin.pluginInfo.id;
-  var project = xcode.project(projectPath);
+  var projectFile = projectPath + config.name() + '.xcodeproj/project.pbxproj';
 
+  var project = xcode.project(projectFile);
+  project.parseSync();
+
+  var plugins = project.pbxGroupByName('Plugins');
+  var id = context.opts.plugin.pluginInfo.id;
   if (process.env.VLC_FRAMEWORK_LOCATION===undefined) { throw new Error('environment variable VLC_FRAMEWORK_LOCATION not found'); }
   var srcFile = process.env.VLC_FRAMEWORK_LOCATION;
-  // how to determine this path dynamically?
   var frameworkFolder = srcFile.substring(srcFile.lastIndexOf('/')+1);
-  var targetDir = projectPath + '/HookTest/Plugins/' + id + '/' + frameworkFolder;
-  
+  var pluginsPath;
+  if ( /"/.test( plugins.path ) ){
+    pluginsPath = plugins.path.match( /"(.*?)"/ )[1];
+  } else {
+    pluginsPath = pluginsPath;
+  }
+  var targetDir = projectPath + pluginsPath + '/' + id + '/' + frameworkFolder;
+
   if (!fs.existsSync(srcFile)) throw new Error('cannot find "' + srcFile + '" ios <framework>');
   if (fs.existsSync(targetDir)) throw new Error('target destination "' + targetDir + '" already exists');
 
   shell.mkdir('-p', path.dirname(targetDir));
   shell.cp('-R', srcFile, path.dirname(targetDir)); // frameworks are directories
 
-  // parsing is async, in a different process
-  project.parse(function (err) {
-    var projectRelative = path.relative(projectPath, targetDir);
-    //project.addFramework(projectRelative, {customFramework: true});
-    //fs.writeFileSync(projectPath, project.writeSync());
-  });
-  console.log('JS - after ios install - done');
+  var projectRelative = path.relative(projectPath, targetDir);
+  project.addFramework(projectRelative, {customFramework: true});
+  fs.writeFileSync(projectFile, project.writeSync());
+  
+  console.log('Finished Installing VLC Framework To iOS Project');
 }
