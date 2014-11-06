@@ -2,7 +2,7 @@
 
 ### Platform Support
 
-This plugin supports PhoneGap/Cordova apps running on both iOS and Android.
+This plugin supports PhoneGap/Cordova apps running on both iOS (Android support planned).
 
 ### Version Requirements
 
