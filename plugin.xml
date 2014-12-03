@@ -30,6 +30,8 @@
 
         <header-file src="src/ios/VLCPlugin.h" />
         <source-file src="src/ios/VLCPlugin.m" />
+        <header-file src="src/ios/MainViewController+RemoteControl.h" />
+        <source-file src="src/ios/MainViewController+RemoteControl.m" />
 
         <framework src="MediaPlayer.framework" />
         <framework src="AudioToolbox.framework" />

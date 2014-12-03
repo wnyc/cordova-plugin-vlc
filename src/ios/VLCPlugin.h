@@ -12,17 +12,8 @@
 #import <MobileVLCKit/MobileVLCKit.h>
 
 @interface VLCPlugin : CDVPlugin
-{
-    VLCMediaPlayer *_mediaplayer;
-    
-    NSString * _callbackId;
-    NSDictionary * _audio;
-    NSTimer * _flushBufferTimer;
-    NSDictionary * _lockScreenCache;
-}
 
 - (void)init:(CDVInvokedUrlCommand*)command;
-- (void)getaudiostate:(CDVInvokedUrlCommand*)command;
 - (void)playstream:(CDVInvokedUrlCommand*)command;
 - (void)playremotefile:(CDVInvokedUrlCommand*)command;
 - (void)playfile:(CDVInvokedUrlCommand*)command;
