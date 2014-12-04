@@ -11,6 +11,8 @@
 #import <AVFoundation/AVFoundation.h>
 #import <MobileVLCKit/MobileVLCKit.h>
 
+extern NSString * const VLCPluginRemoteControlEventNotification;
+
 @interface VLCPlugin : CDVPlugin
 
 - (void)init:(CDVInvokedUrlCommand*)command;
