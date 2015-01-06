@@ -40,7 +40,7 @@
         <framework src="QuartzCore.framework" />
         <framework src="OpenGLES.framework" />
         <framework src="Security.framework" />
-        <framework src="libstdc++.dylib" />
+        <framework src="libstdc++.6.0.9.dylib" />
         <framework src="libbz2.dylib" />
         <framework src="libiconv.dylib" />
     </platform>
