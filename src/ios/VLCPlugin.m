@@ -12,6 +12,8 @@
 #import "VLCPlugin.h"
 #import "DDLog.h"
 
+extern int ddLogLevel;
+
 static NSString * const kVLCPluginJSONOfflineSoundKey = @"offline_sound";
 static NSString * const kVLCPluginJSONTypeKey = @"type";
 static NSString * const kVLCPluginJSONStreamsKey = @"streams";
