@@ -26,6 +26,8 @@
             </feature>
         </config-file>
 
+        <dependency id="org.nypr.cordova.nslogger-cocoalumberjack-connector-plugin" url="https://github.com/wnyc/cordova-plugin-nslogger-cocoalumberjack-connector.git"  />
+
         <hook type="after_plugin_install" src="scripts/afterIOSInstall.js" />
 
         <header-file src="src/ios/VLCPlugin.h" />
