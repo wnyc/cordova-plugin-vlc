@@ -1,9 +1,6 @@
 //
 //  VLCPlugin.m
 //
-//  Created by Bradford Kammin on 4/2/14.
-//
-//
 #import <AVFoundation/AVFoundation.h>
 #import <MediaPlayer/MediaPlayer.h>
 #include <objc/runtime.h>
@@ -101,13 +98,13 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)init:(CDVInvokedUrlCommand*)command {
     
-    DDLogInfo (@"VLC Plugin init");
+    DDLogInfo (@"VLC Plugin configuring");
     
     CDVPluginResult* pluginResult = nil;
     
     if ( _currentAudio!=nil) {
         
-        DDLogInfo(@"sending current audio to js");
+        DDLogInfo(@"VLC Plugin sending current audio to js");
         
         NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONCurrentValue,
                               kVLCPluginJSONAudioKey : _currentAudio};
@@ -186,11 +183,11 @@ typedef NSUInteger NYPRExtraMediaStates;
             [self vlc_playstream:url info:info];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
-            DDLogInfo (@"VLC Plugin internet not reachable");
+            DDLogInfo (@"VLC Plugin cannot play stream because the internet is not reachable");
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no connection"];
         }
     } else {
-        DDLogInfo (@"VLC Plugin invalid stream (%@)", url);
+        DDLogInfo (@"VLC Plugin encountered invalid stream (%@)", url);
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid stream url"];
     }
     
@@ -203,7 +200,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     VLCMediaPlayerState vlcState = self.mediaPlayer.state;
     VLCMediaState vlcMediaState = self.mediaPlayer.media.state;
     
-    DDLogInfo(@"%@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
+    DDLogInfo(@"VLC Plugin audio state is %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
     
     if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || vlcState==VLCMediaPlayerStateStopped || vlcState==VLCMediaPlayerStateError) { // no url or new url
         if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
@@ -268,7 +265,7 @@ typedef NSUInteger NYPRExtraMediaStates;
         }
         
     }else {
-        DDLogInfo (@"VLC Plugin invalid file (%@)", fullFilename);
+        DDLogInfo (@"VLC Plugin encountered invalid file (%@)", fullFilename);
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid local file url"];
     }
     
@@ -308,11 +305,11 @@ typedef NSUInteger NYPRExtraMediaStates;
             [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
-            DDLogInfo (@"VLC Plugin internet not reachable");
+            DDLogInfo (@"VLC Plugin cannot play remote file because internet is not reachable");
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"no connection"];
         }
     } else {
-        DDLogInfo (@"VLC Plugin invalid remote file (%@)", url);
+        DDLogInfo (@"VLC Plugin encountered invalid remote file (%@)", url);
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid remote file url"];
     }
     
@@ -342,7 +339,7 @@ typedef NSUInteger NYPRExtraMediaStates;
         }
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     } else {
-        DDLogInfo (@"VLC Plugin current audio not seekable" );
+        DDLogInfo (@"VLC Plugin current audio is not seekable" );
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
     }
     
@@ -353,7 +350,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     CDVPluginResult* pluginResult = nil;
     NSInteger position = [[command.arguments objectAtIndex:0] integerValue];
     
-    DDLogInfo (@"VLC seeking to position (%ld)", (long)position );
+    DDLogInfo (@"VLC Plugin seeking to position (%ld)", (long)position );
     
     if ([self.mediaPlayer isSeekable]){
         float seconds=(float)position;
@@ -362,7 +359,7 @@ typedef NSUInteger NYPRExtraMediaStates;
         [self.mediaPlayer setPosition:percent];
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     }else {
-        DDLogInfo (@"VLC Plugin current audio not seekable" );
+        DDLogInfo (@"VLC Plugin current audio is not seekable" );
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
     }
     
@@ -416,19 +413,20 @@ typedef NSUInteger NYPRExtraMediaStates;
     NSString * description=@"";
     int state = MEDIA_NONE;
     
-    DDLogInfo(@"State Change: %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
+    DDLogInfo(@"VLC Plugin audio player state has changed to %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
     
     [self vlc_clearFlushBufferTimer];
 
     switch (vlcState) {
-        case VLCMediaPlayerStateStopped:       //< Player has stopped
+        case VLCMediaPlayerStateStopped:
             state = MEDIA_STOPPED;
             if (self.mediaPlayer) {
-                DDLogInfo(@"audio stopped. times: %d/%d", [[self.mediaPlayer time]intValue], [[self.mediaPlayer remainingTime]intValue]);
+                DDLogInfo(@"VLC Plugin audio has stopped. times: %d/%d", [[self.mediaPlayer time]intValue], [[self.mediaPlayer remainingTime]intValue]);
                 if (self.mediaPlayer.media ) {
-                    DDLogInfo(@"length: %d", [[self.mediaPlayer.media length] intValue]);
+                    DDLogInfo(@"VLC Plugin audio length: %d", [[self.mediaPlayer.media length] intValue]);
                     // regard track as completed if it ends within 1/2 second of length...
                     if ([[self.mediaPlayer.media length] intValue]>0 && [[self.mediaPlayer remainingTime]intValue]>=-500 ) {
+                        DDLogInfo(@"VLC Plugin audio track has completed");
                         // send final progress update -- the delegate function (mediaPlayerTimeChanged) doesn't seem to fire
                         // for length:length -- the final call to it is for a time less than the track time, so simulate it here...
                         [self vlc_onAudioProgressUpdate:[[self.mediaPlayer.media length]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
@@ -438,26 +436,26 @@ typedef NSUInteger NYPRExtraMediaStates;
                 }
             }
             break;
-        case VLCMediaPlayerStateOpening:        //< Stream is opening
+        case VLCMediaPlayerStateOpening:
             state = MEDIA_STARTING;
             break;
-        case VLCMediaPlayerStateBuffering:      //< Stream is buffering
+        case VLCMediaPlayerStateBuffering:
             if ( vlcMediaState == VLCMediaStatePlaying ) {
                 state = MEDIA_RUNNING;
             } else {
                 state = MEDIA_STARTING;
             }
             break;
-        case VLCMediaPlayerStateEnded:          //< Stream has ended
+        case VLCMediaPlayerStateEnded:
             state = MEDIA_COMPLETED;
             break;
-        case VLCMediaPlayerStateError:          //< Player has generated an error
+        case VLCMediaPlayerStateError:
             state = MEDIA_STOPPED;
             break;
-        case VLCMediaPlayerStatePlaying:        //< Stream is playing
+        case VLCMediaPlayerStatePlaying:
             state = MEDIA_RUNNING;
             break;
-        case VLCMediaPlayerStatePaused:          //< Stream is paused
+        case VLCMediaPlayerStatePaused:
             state = MEDIA_PAUSED;
             [self vlc_setFlushBufferTimer];
             break;
@@ -485,7 +483,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 }
 
 - (void) vlc_onAudioStreamUpdate:(int)state description:(NSString*)description {
-    DDLogInfo(@"Posting State Change: %@", description);
+    DDLogInfo(@"VLC Plugin posting state change: %@", description);
     
     NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONStateValue, kVLCPluginJSONStateKey : [NSNumber numberWithInt:state], kVLCPluginJSONDescriptionKey : description };
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
@@ -525,7 +523,7 @@ typedef NSUInteger NYPRExtraMediaStates;
         
         switch ([buttonId intValue]){
             case UIEventSubtypeRemoteControlTogglePlayPause:
-                DDLogInfo(@"Remote control toggle play/pause!");
+                DDLogInfo(@"VLC Plugin remote control play/pause");
                 if (self.mediaPlayer.isPlaying){
                     [self.mediaPlayer pause];
                 }else{
@@ -534,51 +532,49 @@ typedef NSUInteger NYPRExtraMediaStates;
                 break;
                 
             case UIEventSubtypeRemoteControlPlay:
-                DDLogInfo(@"Remote control play!");
+                DDLogInfo(@"VLC Plugin remote control play");
                 [self.mediaPlayer play];
                 break;
                 
             case UIEventSubtypeRemoteControlPause:
-                DDLogInfo(@"Remote control toggle pause!");
+                DDLogInfo(@"VLC Plugin remote control pause");
                 [self.mediaPlayer pause];
                 break;
                 
             case UIEventSubtypeRemoteControlStop:
-                DDLogInfo(@"Remote control stop!");
+                DDLogInfo(@"VLC Plugin remote control stop");
                 [self.mediaPlayer pause];
                 break;
                 
             case UIEventSubtypeRemoteControlNextTrack:
-                DDLogInfo(@"Remote control next track");
+                DDLogInfo(@"VLC Plugin remote control next track");
                 [self vlc_onAudioSkipNext];
                 
                 break;
                 
             case UIEventSubtypeRemoteControlPreviousTrack:
-                DDLogInfo(@"Remote control previous track!");
+                DDLogInfo(@"VLC Plugin remote control previous track");
                 [self vlc_onAudioSkipPrevious];
                 break;
                 
             case UIEventSubtypeRemoteControlBeginSeekingBackward:
-                DDLogInfo(@"Remote control begin seeking backward!");
+                DDLogInfo(@"VLC Plugin remote control begin seeking backward");
                 break;
                 
             case UIEventSubtypeRemoteControlEndSeekingBackward:
-                DDLogInfo(@"Remote control end seeking backward!");
+                DDLogInfo(@"VLC Plugin remote control end seeking backward");
                 break;
                 
             case UIEventSubtypeRemoteControlBeginSeekingForward:
-                DDLogInfo(@"Remote control begin seeking forward!");
+                DDLogInfo(@"VLC Plugin remote control begin seeking forward");
                 break;
                 
             case UIEventSubtypeRemoteControlEndSeekingForward:
-                DDLogInfo(@"Remote control end seeking forward!");
-                
+                DDLogInfo(@"VLC Plugin Remote control end seeking forward");
                 break;
                 
             default:
-                
-                DDLogInfo(@"Remote control unknown!");
+                DDLogInfo(@"VLC Plugin remote control unknown command");
                 break;
         }
     }
@@ -637,7 +633,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 }
 
 - (void) vlc_flushBuffer {
-    DDLogInfo(@"Flushing buffer....");
+    DDLogInfo(@"VLC Plugin flushing buffer");
     [self.mediaPlayer stop];
 }
 
@@ -693,17 +689,17 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)vlc_loadLockscreenImage:(NSString*)artwork {
     if ( [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus] != NotReachable) {
-        DDLogInfo(@"Retrieving lock screen art...");
+        DDLogInfo(@"VLC Plugin retrieving lock screen art");
         NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:artwork]];
         UIImage *img = [[UIImage alloc] initWithData:data];
         if (img){
-            DDLogInfo(@"Creating MPMediaItemArtwork...");
+            DDLogInfo(@"VLC Plugin creating MPMediaItemArtwork");
             MPMediaItemArtwork * art = [[MPMediaItemArtwork alloc] initWithImage: img];
             [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:@{kVLCPluginAudioMetadataKeyLockscreenArt: art}];
         }
-        DDLogInfo(@"Done retrieving lock screen art.");
+        DDLogInfo(@"VLC Plugin done retrieving lock screen art");
     }else{
-        DDLogInfo(@"Offline - not retrieving lock screen art");
+        DDLogInfo(@"VLC Plugin offline - not retrieving lock screen art");
     }
 }
 
@@ -731,7 +727,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     NSString * notificationType = [[localNotification userInfo] objectForKey:kVLCPluginJSONTypeKey];
     
     if ( notificationType!=nil && [notificationType isEqualToString:kVLCPluginJSONAlarmNotificationValue]) {
-        DDLogInfo(@"alarm detected!");
+        DDLogInfo(@"VLC Plugin alarm detected");
         
         NSString * s = [[localNotification userInfo] objectForKey:kVLCPluginJSONExtraKey];
         NSError *error;
@@ -765,8 +761,11 @@ typedef NSUInteger NYPRExtraMediaStates;
                     }
                 }
             }
+            else {
+                DDLogInfo(@"VLC Plugin alarm contains no configuration information");
+            }
         } else {
-            DDLogInfo(@"VLC wakeup - cannot play stream due to no connection");
+            DDLogInfo(@"VLC Plugin cannot play alarm stream because internet is not reachable");
             if (extra!=nil) {
                 NSString  * sound = [extra objectForKey:kVLCPluginJSONOfflineSoundKey];
                 NSURL *resourceURLString = [[NSBundle mainBundle] resourceURL];
@@ -787,13 +786,11 @@ typedef NSUInteger NYPRExtraMediaStates;
     switch (routeChangeReason) {
             
         case AVAudioSessionRouteChangeReasonNewDeviceAvailable:
-            DDLogInfo(@"AVAudioSessionRouteChangeReasonNewDeviceAvailable");
-            DDLogInfo(@"Headphone/Line plugged in");
+            DDLogInfo(@"VLC Plugin headphone/line plugged in");
             break;
             
         case AVAudioSessionRouteChangeReasonOldDeviceUnavailable:
-            DDLogInfo(@"AVAudioSessionRouteChangeReasonOldDeviceUnavailable");
-            DDLogInfo(@"Headphone/Line was pulled. Stopping player....");
+            DDLogInfo(@"VLC Plugin stopping audio player because headphone/line disconnected");
             if([self.mediaPlayer isPlaying]) {
                 [self.mediaPlayer pause];
             }
@@ -801,7 +798,6 @@ typedef NSUInteger NYPRExtraMediaStates;
             
         case AVAudioSessionRouteChangeReasonCategoryChange:
             // called at start - also when other audio wants to play
-            DDLogInfo(@"AVAudioSessionRouteChangeReasonCategoryChange");
             break;
     }
 }
@@ -809,6 +805,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 - (void)vlc_audioInterruption:(NSNotification*)notification {
     AVAudioSessionInterruptionType interruptionType = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
     if (AVAudioSessionInterruptionTypeBegan == interruptionType) {
+        DDLogInfo(@"VLC Plugin stopping audio player because headphone/line disconnected");
         [self.mediaPlayer pause];
     }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
     }
