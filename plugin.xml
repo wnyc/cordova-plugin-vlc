@@ -26,10 +26,14 @@
             </feature>
         </config-file>
 
+        <dependency id="org.nypr.cordova.nslogger-cocoalumberjack-connector-plugin" url="https://github.com/wnyc/cordova-plugin-nslogger-cocoalumberjack-connector.git"  />
+
         <hook type="after_plugin_install" src="scripts/afterIOSInstall.js" />
 
         <header-file src="src/ios/VLCPlugin.h" />
         <source-file src="src/ios/VLCPlugin.m" />
+        <header-file src="src/ios/MainViewController+RemoteControl.h" />
+        <source-file src="src/ios/MainViewController+RemoteControl.m" />
 
         <framework src="MediaPlayer.framework" />
         <framework src="AudioToolbox.framework" />
@@ -38,7 +42,7 @@
         <framework src="QuartzCore.framework" />
         <framework src="OpenGLES.framework" />
         <framework src="Security.framework" />
-        <framework src="libstdc++.dylib" />
+        <framework src="libstdc++.6.0.9.dylib" />
         <framework src="libbz2.dylib" />
         <framework src="libiconv.dylib" />
     </platform>
