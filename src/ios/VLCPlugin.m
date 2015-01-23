@@ -34,9 +34,9 @@ static NSString * const kVLCPluginJSONProgressValue = @"progress";
 
 static NSString * const kVLCPluginAudioMetadataKeyTitle = @"title";
 static NSString * const kVLCPluginAudioMetadataKeyArtist = @"artist";
-static NSString * const kVLCPluginAudioMetadataKeyImage = @"image";
-static NSString * const kVLCPluginAudioMetadataKeyImageUrl = @"url";
-static NSString * const kVLCPluginAudioMetadataKeyLockscreenArt = @"lockscreen-art";
+static NSString * const kVLCPluginAudioMetadataKeyImageObject = @"image";
+static NSString * const kVLCPluginAudioMetadataKeyImageObjectUrl = @"url";
+static NSString * const kVLCPluginAudioMetadataKeyLockscreenImageUrl = @"lockscreenImageUrl";
 
 static NSString * const kVLCPluginVLCNetworkCachingKey = @"network-caching";
 static NSString * const kVLCPluginVLCStartTimeKey = @"start-time";
@@ -57,11 +57,14 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 @interface VLCPlugin ()
 
-@property VLCMediaPlayer * mediaPlayer;
-@property NSString * callbackId;
-@property NSDictionary * currentAudio;
-@property NSTimer * flushBufferTimer;
-@property NSDictionary * lockScreenCache;
+@property VLCMediaPlayer *mediaPlayer;
+@property NSString *callbackId;
+@property NSDictionary *currentAudio;
+@property NSTimer *flushBufferTimer;
+@property NSDictionary *lockScreenCache;
+@property NSString *lockcreenImageUrl;
+@property MPMediaItemArtwork *lockscreenMediaItemArtwork;
+@property NSURLSessionDataTask *lockscreenImageDownloadTask;
 
 @end
 
@@ -172,7 +175,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 #pragma Audio playback commands
 
-- (void)playstream:(CDVInvokedUrlCommand*)command {
+- (void)playstream:(CDVInvokedUrlCommand *)command {
     CDVPluginResult* pluginResult = nil;
     NSDictionary  * params = [command.arguments  objectAtIndex:0];
     NSString* url = [params objectForKey:kVLCPluginJSONIOSUrlKey];
@@ -194,7 +197,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
-- (void)vlc_playstream:(NSString*)url info:(NSDictionary*)info {
+- (void)vlc_playstream:(NSString *)url info:(NSDictionary *)info {
     DDLogInfo (@"VLC Plugin starting stream (%@)", url);
     
     VLCMediaPlayerState vlcState = self.mediaPlayer.state;
@@ -226,7 +229,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
 }
 
-- (void)playfile:(CDVInvokedUrlCommand*)command {
+- (void)playfile:(CDVInvokedUrlCommand *)command {
     CDVPluginResult* pluginResult = nil;
     NSString* fullFilename = [command.arguments objectAtIndex:0];
     NSDictionary  * info = [command.arguments  objectAtIndex:1];
@@ -386,7 +389,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 - (void)vlc_setlockscreenmetadata:(NSDictionary*)metadata refreshLockScreen:(BOOL)refreshLockScreen {
     self.lockScreenCache = [NSDictionary dictionaryWithDictionary:metadata];
     if(refreshLockScreen){
-        [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:self.lockScreenCache];
+        [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
     }
 }
 
@@ -466,10 +469,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     description = [self vlc_convertAudioStateToString:state];
     
-    if(state==MEDIA_RUNNING) {
-        [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:self.lockScreenCache];
-    }
-    
     [self vlc_onAudioStreamUpdate:state description:description];
     
     if ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull ) {
@@ -489,7 +488,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
     
-    [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:nil];
+    [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
 }
 
 - (void) vlc_onAudioProgressUpdate:(long) progress duration:(long)duration available:(long)available {
@@ -501,7 +500,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
     
-    [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:nil];
+    [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
 }
 
 - (void) vlc_onAudioSkipNext {
@@ -643,61 +642,154 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 #pragma mark Lock Screen Metadata
 
-- (void) vlc_setMPNowPlayingInfoCenterNowPlayingInfo:(NSDictionary*)info {
-    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = [self vlc_configureNowPlayingInfoCenterNowPlayingInfo:info];
-}
-
-- (NSDictionary*) vlc_configureNowPlayingInfoCenterNowPlayingInfo:(NSDictionary*)info {
-    NSMutableDictionary *nowPlaying = [MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo mutableCopy];
-    if (nowPlaying==nil) {
-        nowPlaying = [NSMutableDictionary dictionaryWithCapacity:10];
-    }
+- (void) vlc_setNowPlayingInfo:(NSDictionary*)info retrieveLockscreenArt:(BOOL)retrieveLockscreenArt {
     
-    float _elapsedPlaybackTime = self.mediaPlayer ? ([[self.mediaPlayer time]intValue] / 1000): 0.0f;
-    NSNumber* elapsedPlaybackTime = @(_elapsedPlaybackTime);
-    nowPlaying[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsedPlaybackTime;
-
-    float _playbackDuration = (self.mediaPlayer && self.mediaPlayer.media) ? ([[self.mediaPlayer.media length]intValue]/1000) : 0.0f;
-    if (_playbackDuration==0.0f){
-        _playbackDuration=_elapsedPlaybackTime;
-    }
-    NSNumber* playbackDuration = @(_playbackDuration);
-    nowPlaying[MPMediaItemPropertyPlaybackDuration] = playbackDuration;
+    NSString *title=@"";
+    NSString *artist=@"";
+    NSString *artworkURL;
     
-    if (info!=nil) {
+    NSNumber *elapsedPlaybackTime=[self vlc_getElapsedTime];
+    NSNumber *playbackDuration=[self vlc_getDuration];
+    
+    MPMediaItemArtwork *mediaItemArtwork=nil;
+    
+    if (info) {
         if ([info objectForKey:kVLCPluginAudioMetadataKeyTitle]!=nil) {
-            nowPlaying[MPMediaItemPropertyTitle] = [info objectForKey:kVLCPluginAudioMetadataKeyTitle];
+            title = [info objectForKey:kVLCPluginAudioMetadataKeyTitle];
         }
         
         if ([info objectForKey:kVLCPluginAudioMetadataKeyArtist]!=nil) {
-            nowPlaying[MPMediaItemPropertyArtist] = [info objectForKey:kVLCPluginAudioMetadataKeyArtist];
+            artist = [info objectForKey:kVLCPluginAudioMetadataKeyArtist];
         }
         
-        NSDictionary * artwork = [info objectForKey:kVLCPluginAudioMetadataKeyImage];
-        if (artwork && artwork != (id)[NSNull null] && [artwork objectForKey:kVLCPluginAudioMetadataKeyImageUrl] != nil){
-            NSString * url = [artwork objectForKey:kVLCPluginAudioMetadataKeyImageUrl];
-            [self performSelectorInBackground:@selector(vlc_loadLockscreenImage:) withObject:url]; // load in background to avoid screen lag
+        
+        if ([info objectForKey:kVLCPluginAudioMetadataKeyLockscreenImageUrl]!=nil) {
+            artworkURL = [info objectForKey:kVLCPluginAudioMetadataKeyLockscreenImageUrl];
+        }
+        else {
+            NSDictionary * artwork = [info objectForKey:kVLCPluginAudioMetadataKeyImageObject];
+            if (artwork && artwork != (id)[NSNull null] && [artwork objectForKey:kVLCPluginAudioMetadataKeyImageObjectUrl] != nil){
+                DDLogInfo(@"VLC Plugin Lockscreen image found at json path image.url, which is deprecated. Please switch to lockscreenImageUrl.");
+                artworkURL = [artwork objectForKey:kVLCPluginAudioMetadataKeyImageObjectUrl];
+            }
         }
         
-        if ([info objectForKey:kVLCPluginAudioMetadataKeyLockscreenArt]!=nil) {
-            nowPlaying[MPMediaItemPropertyArtwork] = [info objectForKey:kVLCPluginAudioMetadataKeyLockscreenArt];
-        }
-        
+        mediaItemArtwork = [self vlc_getLockScreenImage:artworkURL retrieveLockscreenArt:retrieveLockscreenArt];
     }
-    return nowPlaying;
+    
+    NSDictionary *nowPlaying;
+    
+    if (mediaItemArtwork) {
+        nowPlaying = @{
+            MPMediaItemPropertyTitle: title,
+            MPMediaItemPropertyArtist: artist,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsedPlaybackTime,
+            MPMediaItemPropertyPlaybackDuration: playbackDuration,
+            MPMediaItemPropertyArtwork: mediaItemArtwork
+        };
+    }
+    else {
+        nowPlaying = @{
+            MPMediaItemPropertyTitle: title,
+            MPMediaItemPropertyArtist: artist,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsedPlaybackTime,
+            MPMediaItemPropertyPlaybackDuration: playbackDuration
+        };
+    }
+    
+    MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo = nowPlaying;
 }
 
-- (void)vlc_loadLockscreenImage:(NSString*)artwork {
-    if ( [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus] != NotReachable) {
-        DDLogInfo(@"VLC Plugin retrieving lock screen art");
-        NSData *data = [NSData dataWithContentsOfURL:[NSURL URLWithString:artwork]];
-        UIImage *img = [[UIImage alloc] initWithData:data];
-        if (img){
-            DDLogInfo(@"VLC Plugin creating MPMediaItemArtwork");
-            MPMediaItemArtwork * art = [[MPMediaItemArtwork alloc] initWithImage: img];
-            [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:@{kVLCPluginAudioMetadataKeyLockscreenArt: art}];
+- (NSNumber *)vlc_getElapsedTime {
+    float _elapsedPlaybackTime = self.mediaPlayer ? ([[self.mediaPlayer time]intValue] / 1000): 0.0f;
+    NSNumber *elapsedPlaybackTime = @(_elapsedPlaybackTime);
+    return elapsedPlaybackTime;
+}
+
+- (NSNumber *)vlc_getDuration {
+    float _playbackDuration = (self.mediaPlayer && self.mediaPlayer.media) ? ([[self.mediaPlayer.media length]intValue]/1000) : 0.0f;
+    NSNumber *playbackDuration;
+    if (_playbackDuration==0.0f){
+        playbackDuration=[self vlc_getElapsedTime];
+    }
+    else {
+        playbackDuration = @(_playbackDuration);
+    }
+    return playbackDuration;
+}
+
+
+- (MPMediaItemArtwork *)vlc_getLockScreenImage:(NSString *)artworkURL retrieveLockscreenArt:(BOOL)retrieveLockscreenArt {
+    MPMediaItemArtwork *mediaItemArtwork;
+    
+    if (artworkURL) {
+        if (self.lockcreenImageUrl && [artworkURL isEqualToString:self.lockcreenImageUrl]) {
+            // use current artwork object if it exists...
+            if (self.lockscreenMediaItemArtwork!=nil) {
+                mediaItemArtwork = self.lockscreenMediaItemArtwork;
+            }
+            else {
+                // otherwise, retrieve the artwork...
+                if (retrieveLockscreenArt) {
+                    [self vlc_retrieveLockscreenImage:artworkURL];
+                }
+            }
         }
-        DDLogInfo(@"VLC Plugin done retrieving lock screen art");
+        else {
+            // artwork has changed, remove any current artwork, cancel current retrieval task
+            if (!self.lockscreenImageDownloadTask) {
+                [self.lockscreenImageDownloadTask cancel];
+            }
+            
+            // and then retreive...
+            if (retrieveLockscreenArt) {
+                [self vlc_retrieveLockscreenImage:artworkURL];
+            }
+        }
+    }
+    else {
+        // no artwork for this audio... cancel current download task
+        if (!self.lockscreenImageDownloadTask) {
+            [self.lockscreenImageDownloadTask cancel];
+        }
+    }
+    
+    return mediaItemArtwork;
+}
+
+- (void)vlc_retrieveLockscreenImage:(NSString *)artworkUrl {
+    if ( [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus] != NotReachable) {  // is the network available?
+        if (!self.lockscreenImageDownloadTask || self.lockscreenImageDownloadTask.state != NSURLSessionTaskStateRunning) { // is the artwork already downloading?
+        
+            DDLogInfo(@"VLC Plugin retrieving lock screen art from %@", artworkUrl);
+
+            NSURL *url = [NSURL URLWithString:artworkUrl];
+            NSURLRequest *request = [NSURLRequest requestWithURL:url];
+            NSURLSession *session = [NSURLSession sessionWithConfiguration:[NSURLSessionConfiguration defaultSessionConfiguration]];
+            self.lockscreenImageDownloadTask = [session dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error){
+                if (!error) {
+                    DDLogInfo(@"VLC Plugin done retrieving lock screen art");
+                
+                    UIImage *image = [[UIImage alloc] initWithData:data];
+                    MPMediaItemArtwork *mediaItemArtwork = [[MPMediaItemArtwork alloc] initWithImage:image];
+     
+                    self.lockscreenMediaItemArtwork = mediaItemArtwork;
+                    self.lockcreenImageUrl = artworkUrl;
+                
+                    [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:NO];
+                }
+                else {
+                    DDLogInfo(@"VLC Plugin error occured while retrieving lock screen art:");
+                    DDLogInfo(@"%@", error.localizedDescription );
+                    DDLogInfo(@"%@", error.localizedFailureReason );
+                    DDLogInfo(@"%@", error.localizedRecoveryOptions );
+                }
+            }];
+            [self.lockscreenImageDownloadTask resume];
+        }
+        else {
+            DDLogInfo(@"VLC Plugin skipping download -- already in progress for %@", artworkUrl);
+        }
     }else{
         DDLogInfo(@"VLC Plugin offline - not retrieving lock screen art");
     }
