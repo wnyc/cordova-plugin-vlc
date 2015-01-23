@@ -36,7 +36,6 @@ static NSString * const kVLCPluginAudioMetadataKeyTitle = @"title";
 static NSString * const kVLCPluginAudioMetadataKeyArtist = @"artist";
 static NSString * const kVLCPluginAudioMetadataKeyImageObject = @"image";
 static NSString * const kVLCPluginAudioMetadataKeyImageObjectUrl = @"url";
-//static NSString * const kVLCPluginAudioMetadataKeyLockscreenArt = @"lockscreenArt";
 static NSString * const kVLCPluginAudioMetadataKeyLockscreenImageUrl = @"lockscreenImageUrl";
 
 static NSString * const kVLCPluginVLCNetworkCachingKey = @"network-caching";
@@ -469,11 +468,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     };
     
     description = [self vlc_convertAudioStateToString:state];
-    /*
-    if(state==MEDIA_RUNNING) {
-        [self vlc_setMPNowPlayingInfoCenterNowPlayingInfo:self.lockScreenCache];
-    }
-     */
     
     [self vlc_onAudioStreamUpdate:state description:description];
     
