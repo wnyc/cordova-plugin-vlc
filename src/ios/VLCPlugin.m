@@ -11,6 +11,10 @@
 
 extern int ddLogLevel;
 
+static NSString *const kVLCPluginNoCloudDirectory = @"NoCloud";
+static NSString *const kVLCPluginOldFileDirectory = @"Audio";
+static NSString *const kVLCPluginFileDirectoryRelativeToLibrary = @"NoCloud/Audio";
+
 static NSString * const kVLCPluginJSONOfflineSoundKey = @"offline_sound";
 static NSString * const kVLCPluginJSONTypeKey = @"type";
 static NSString * const kVLCPluginJSONStreamsKey = @"streams";
@@ -73,6 +77,8 @@ typedef NSUInteger NYPRExtraMediaStates;
 #pragma mark Initialization
 
 - (void)pluginInitialize {
+
+    [self vlc_checkForAndMoveFilesFromOldDirectory];
 
     // turn on remote control
    if ([[UIApplication sharedApplication] respondsToSelector:@selector(beginReceivingRemoteControlEvents)]){
@@ -391,15 +397,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     if(refreshLockScreen){
         [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
     }
-}
-
-#pragma mark Audio playback helper functions
-
-- (NSString*)vlc_getAudioDirectory{
-    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
-    NSString *documentsDirectory = [paths objectAtIndex:0];
-    NSString *path = [NSString stringWithFormat:@"%@/Audio/",documentsDirectory];
-    return path;
 }
 
 #pragma mark Audio playback event handlers
@@ -900,6 +897,70 @@ typedef NSUInteger NYPRExtraMediaStates;
         DDLogInfo(@"VLC Plugin stopping audio player because headphone/line disconnected");
         [self.mediaPlayer pause];
     }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
+    }
+}
+
+
+#pragma mark File management functions
+
+- (void)vlc_checkForAndMoveFilesFromOldDirectory {
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+
+    NSString *oldAudioDirectory = [self vlc_getOldAudioDirectory];
+    BOOL oldAudioDirectoryExists = [fileManager fileExistsAtPath:oldAudioDirectory];
+
+    if (!oldAudioDirectoryExists) {
+        return;
+    }
+
+    NSString *newAudioDirectory = [self vlc_getAudioDirectory];
+    BOOL newAudioDirectoryExists = [fileManager fileExistsAtPath:newAudioDirectory];
+    NSError *__autoreleasing *error = nil;
+
+    if (newAudioDirectoryExists) {
+        [fileManager removeItemAtPath:oldAudioDirectory error:error];
+        if (error) {
+            DDLogInfo(@"VLC Plugin error removing old audio directory");
+        }
+        return;
+    }
+
+    [self vlc_checkForAndCreateLibraryNoCloudDirectory];
+
+    error = nil;
+    [fileManager moveItemAtPath:oldAudioDirectory toPath:newAudioDirectory error:error];
+    if (error) {
+        DDLogInfo(@"VLC Plugin error moving old audio directory to new audio directory");
+    }
+}
+
+- (NSString *)vlc_getOldAudioDirectory {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES);
+    NSString *documentsDirectory = [paths objectAtIndex:0];
+    NSString *path = [NSString stringWithFormat:@"%@/%@/",documentsDirectory, kVLCPluginOldFileDirectory];
+    return path;
+}
+
+- (NSString *)vlc_getAudioDirectory {
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
+    NSString *libraryDirectory = [paths objectAtIndex:0];
+    NSString *path = [NSString stringWithFormat:@"%@/%@/",libraryDirectory, kVLCPluginFileDirectoryRelativeToLibrary];
+    return path;
+}
+
+- (void)vlc_checkForAndCreateLibraryNoCloudDirectory {
+    // safeguard - Library/NoCloud should be created by Cordova
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    NSArray *paths = NSSearchPathForDirectoriesInDomains(NSLibraryDirectory, NSUserDomainMask, YES);
+    NSString *libraryDirectory = [paths objectAtIndex:0];
+    NSString *path = [NSString stringWithFormat:@"%@/%@/",libraryDirectory, kVLCPluginNoCloudDirectory];
+
+    BOOL noCloudDirectoryExists = [fileManager fileExistsAtPath:path];
+    NSError *__autoreleasing *error = nil;
+
+    if (!noCloudDirectoryExists) {
+        [fileManager createDirectoryAtPath:path withIntermediateDirectories:FALSE attributes:nil error:error];
+        NSAssert(!error, @"Could not create directory at %@", path);
     }
 }
 
