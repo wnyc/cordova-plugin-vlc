@@ -48,6 +48,7 @@ static NSString * const kVLCPluginVLCStartTimeKey = @"start-time";
 static int const kVLCPluginWifiPrebuffer = 5000;
 static int const kVLCPluginWanPrebuffer = 10000;
 static int const kVLCPluginBufferTimeout = 60;
+static int const kVLCPluginHeartbeatTimeout = 60;
 
 NSString * const VLCPluginRemoteControlEventNotification = @"VLCPluginRemoteControlEventNotification";
 
@@ -69,6 +70,8 @@ typedef NSUInteger NYPRExtraMediaStates;
 @property NSString *lockcreenImageUrl;
 @property MPMediaItemArtwork *lockscreenMediaItemArtwork;
 @property NSURLSessionDataTask *lockscreenImageDownloadTask;
+@property NSTimer *heartbeatTimer;
+@property NSTimeInterval lastHeartbeat;
 
 @end
 
@@ -403,6 +406,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)mediaPlayerTimeChanged:(NSNotification *)aNotification {
     [self vlc_onAudioProgressUpdate:[[self.mediaPlayer time]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
+    self.lastHeartbeat = [[NSDate date] timeIntervalSince1970];
     //DDLogInfo(@"mediaPlayerTimeChanged %d/%d/%d", [[self.mediaPlayer time]intValue], [[self.mediaPlayer remainingTime]intValue], [[self.mediaPlayer.media length] intValue]);
 }
 
@@ -465,6 +469,12 @@ typedef NSUInteger NYPRExtraMediaStates;
     };
     
     description = [self vlc_convertAudioStateToString:state];
+    
+    if (state == MEDIA_RUNNING) {
+        [self vlc_setHeartbeatTimer];
+    } else {
+        [self vlc_clearHeartbeatTimer];
+    }
     
     [self vlc_onAudioStreamUpdate:state description:description];
     
@@ -620,7 +630,12 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 }
 
+#pragma mark Flush buffer methods
+
 - (void) vlc_setFlushBufferTimer {
+    if (self.flushBufferTimer) {
+        [self.flushBufferTimer invalidate];
+    }
     self.flushBufferTimer = [NSTimer scheduledTimerWithTimeInterval: kVLCPluginBufferTimeout
                                               target: self
                                             selector: @selector(vlc_flushBuffer)
@@ -636,6 +651,39 @@ typedef NSUInteger NYPRExtraMediaStates;
 - (void) vlc_clearFlushBufferTimer {
     [self.flushBufferTimer invalidate];
 }
+
+#pragma mark Heartbeat methods
+
+- (void) vlc_setHeartbeatTimer {
+    if (self.heartbeatTimer) {
+        [self.heartbeatTimer invalidate];
+    }
+    self.heartbeatTimer = [NSTimer scheduledTimerWithTimeInterval: kVLCPluginHeartbeatTimeout
+                                                             target: self
+                                                           selector: @selector(vlc_checkHeartbeat)
+                                                           userInfo: nil
+                                                            repeats: NO];
+}
+
+- (void) vlc_checkHeartbeat {
+    NSTimeInterval secondsSinceLastHeartbeat = [[NSDate date] timeIntervalSince1970] - self.lastHeartbeat;
+    if (secondsSinceLastHeartbeat >= kVLCPluginHeartbeatTimeout) {
+        DDLogInfo(@"VLC Plugin audio playback heartbeat expired");
+        [self.mediaPlayer stop];
+    }
+    else {
+        self.heartbeatTimer = [NSTimer scheduledTimerWithTimeInterval: kVLCPluginHeartbeatTimeout - secondsSinceLastHeartbeat
+                                                                   target: self
+                                                                 selector: @selector(vlc_checkHeartbeat)
+                                                                 userInfo: nil
+                                                                  repeats: NO];
+    }
+}
+
+- (void) vlc_clearHeartbeatTimer {
+    [self.heartbeatTimer invalidate];
+}
+
 
 #pragma mark Lock Screen Metadata
 
