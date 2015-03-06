@@ -1,0 +1,25 @@
+From 20e150dc7154460ec11db72fd448e6a458e62980 Mon Sep 17 00:00:00 2001
+From: Brad Kammin <bkammin@nypublicradio.org> 
+Date: Fri, 6 Mar 2015 12:29:31 -0500
+Subject: [PATCH 11/11] fix app crash on exit
+
+---
+ contrib/src/gpg-error/rules.mak | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/contrib/src/gpg-error/rules.mak b/contrib/src/gpg-error/rules.mak
+index acfcea8..495694d 100644
+--- a/contrib/src/gpg-error/rules.mak
++++ b/contrib/src/gpg-error/rules.mak
+@@ -16,7 +16,7 @@ endif
+ 	$(MOVE)
+ 	cp $@/src/syscfg/lock-obj-pub.arm-unknown-linux-androideabi.h $@/src/syscfg/lock-obj-pub.linux-android.h
+ ifdef HAVE_IOS
+-	cp $@/src/syscfg/lock-obj-pub.arm-unknown-linux-androideabi.h $@/src/syscfg/lock-obj-pub.$(HOST).h
++ cp $@/src/syscfg/lock-obj-pub.arm-apple-darwin.h $@/src/syscfg/lock-obj-pub.$(HOST).h
+ endif
+ 
+ .gpg-error: libgpg-error
+-- 
+1.9.3 (Apple Git-50)
+
