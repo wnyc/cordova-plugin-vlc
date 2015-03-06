@@ -6,7 +6,7 @@ echo 'Building VLC for iOS framework'
 
 echo 'Cloning VLC repo...'
 rm -fr VLCKit
-git clone git://git.videolan.org/vlc-bindings/VLCKit.git
+git clone git://git.videolan.org/vlc-bindings/VLCKit.git -b 2.2.x
 
 echo 'Moving patches into cloned VLC repo...'
 cp patches/ios/* VLCKit/MobileVLCKit/patches
