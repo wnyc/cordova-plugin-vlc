@@ -43,7 +43,10 @@ module.exports = function(context) {
   for (var ref in config) {
     console.log('Reference - ' + ref);
     var otherLinkFlags = config[ref].buildSettings.OTHER_LINKER_FLAGS;
-    console.log('OTHER_LINKER_FLAGS -- ' + otherLinkerFlags); 
+    console.log(config[ref]);
+    if (OTHER_LINKER_FLAGS) {
+      console.log('OTHER_LINKER_FLAGS -- ' + otherLinkerFlags); 
+    }
   }
 
   fs.writeFileSync(projectFile, project.writeSync());
