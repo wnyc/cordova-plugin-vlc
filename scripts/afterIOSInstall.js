@@ -44,12 +44,14 @@ module.exports = function(context) {
   for (var ref in config) {
     console.log('Reference - ' + ref);
     if (ref.indexOf('_comment') > -1) continue;
-    otherLdFlags = config[ref].buildSettings.OTHER_LDFLAGS;
+    otherLdFlags = config[ref].buildSettings['OTHER_LDFLAGS'];
     //console.log(config[ref]);
     if (otherLdFlags) {
-      otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
-      console.log('updating OTHER_LDFLAGS -- ' + otherLdFlags);
-      config[ref].buildSettings.OTHER_LDFLAGS = otherLdFlags;
+      //otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
+      //console.log('updating OTHER_LDFLAGS -- ' + otherLdFlags);
+      //config[ref].buildSettings.OTHER_LDFLAGS = otherLdFlags;
+      otherLdFlags.push('-lss2');
+      otherLdFlags.push('-lcrypto');
     }
   }
 
