@@ -47,16 +47,17 @@ module.exports = function(context) {
     otherLdFlags = config[ref].buildSettings.OTHER_LDFLAGS;
     //console.log(config[ref]);
     if (otherLdFlags) {
-      console.log('OTHER_LDFLAGS -- ' + otherLdFlags);
-      break;
+      otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
+      console.log('updating OTHER_LDFLAGS -- ' + otherLdFlags);
+      config[ref].buildSettings.OTHER_LDFLAGS = otherLdFlags;
     }
   }
 
-  if (otherLdFlags) {
-    otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
-    console.log('updating OTHER_LD_FLAGS to ' + otherLdFlags);
-    project.updateBuildProperty('OTHER_LDFLAGS', otherLdFlags);
-  }
+  //if (otherLdFlags) {
+    //otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
+    //console.log('updating OTHER_LDFLAGS to ' + otherLdFlags);
+    //project.updateBuildProperty('OTHER_LDFLAGS', otherLdFlags);
+  //}
   fs.writeFileSync(projectFile, project.writeSync());
   
   console.log('Finished Installing VLC Framework To iOS Project');
