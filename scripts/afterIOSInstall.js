@@ -38,6 +38,14 @@ module.exports = function(context) {
 
   var projectRelative = path.relative(projectPath, targetDir);
   project.addFramework(projectRelative, {customFramework: true});
+
+  var config = project.pbxXCBuildConfigurationSection();
+  for (var ref in config) {
+    console.log('Reference - ' + ref);
+    var otherLinkFlags = config[ref].buildSettings.OTHER_LINKER_FLAGS;
+    console.log('OTHER_LINKER_FLAGS -- ' + otherLinkerFlags); 
+  }
+
   fs.writeFileSync(projectFile, project.writeSync());
   
   console.log('Finished Installing VLC Framework To iOS Project');
