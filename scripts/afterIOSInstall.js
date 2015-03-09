@@ -42,10 +42,10 @@ module.exports = function(context) {
   var config = project.pbxXCBuildConfigurationSection();
   for (var ref in config) {
     console.log('Reference - ' + ref);
-    var otherLinkFlags = config[ref].buildSettings.OTHER_LINKER_FLAGS;
+    var otherLdFlags = config[ref].buildSettings.OTHER_LDFLAGS;
     console.log(config[ref]);
-    if (OTHER_LINKER_FLAGS) {
-      console.log('OTHER_LINKER_FLAGS -- ' + otherLinkerFlags); 
+    if (otherLdFlags) {
+      console.log('OTHER_LDFLAGS -- ' + otherLdFlags); 
     }
   }
 
