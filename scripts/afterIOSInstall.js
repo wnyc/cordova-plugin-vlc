@@ -42,24 +42,14 @@ module.exports = function(context) {
   var config = project.pbxXCBuildConfigurationSection();
   var otherLdFlags;
   for (var ref in config) {
-    console.log('Reference - ' + ref);
     if (ref.indexOf('_comment') > -1) continue;
     otherLdFlags = config[ref].buildSettings['OTHER_LDFLAGS'];
-    //console.log(config[ref]);
     if (otherLdFlags) {
-      //otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
-      //console.log('updating OTHER_LDFLAGS -- ' + otherLdFlags);
-      //config[ref].buildSettings.OTHER_LDFLAGS = otherLdFlags;
-      otherLdFlags.push('-lss2');
-      otherLdFlags.push('-lcrypto');
+      otherLdFlags.push('"-lss2"');
+      otherLdFlags.push('"-lcrypto"');
     }
   }
 
-  //if (otherLdFlags) {
-    //otherLdFlags = otherLdFlags + ', "-lssh2", "-lcrypto"';
-    //console.log('updating OTHER_LDFLAGS to ' + otherLdFlags);
-    //project.updateBuildProperty('OTHER_LDFLAGS', otherLdFlags);
-  //}
   fs.writeFileSync(projectFile, project.writeSync());
   
   console.log('Finished Installing VLC Framework To iOS Project');
