@@ -42,6 +42,7 @@ module.exports = function(context) {
   var config = project.pbxXCBuildConfigurationSection();
   for (var ref in config) {
     console.log('Reference - ' + ref);
+    if (ref.indexOf('_comment') > -1) continue;
     var otherLdFlags = config[ref].buildSettings.OTHER_LDFLAGS;
     console.log(config[ref]);
     if (otherLdFlags) {
