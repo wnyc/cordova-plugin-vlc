@@ -9,7 +9,7 @@
 
 extern NSString * const VLCPluginRemoteControlEventNotification;
 
-@interface VLCPlugin : CDVPlugin
+@interface VLCPlugin : CDVPlugin <VLCMediaPlayerDelegate>
 
 - (void)init:(CDVInvokedUrlCommand*)command;
 - (void)playstream:(CDVInvokedUrlCommand*)command;
