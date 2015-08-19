@@ -945,6 +945,8 @@ typedef NSUInteger NYPRExtraMediaStates;
         DDLogInfo(@"VLC Plugin stopping audio player because headphone/line disconnected");
         [self.mediaPlayer pause];
     }else if (AVAudioSessionInterruptionTypeEnded == interruptionType){
+        DDLogInfo(@"VLC Plugin resumed audio player after headphone/line disconnected");
+        [self.mediaPlayer play];
     }
 }
 
