@@ -46,4 +46,10 @@
         <framework src="libbz2.dylib" />
         <framework src="libiconv.dylib" />
     </platform>
+
+    <platform name="android">
+        <framework src="src/android/libvlc.gradle" custom="true" type="gradleReference" />
+        <resource-file src="libs/android/libvlc-3.0.0.aar" target="libs/libvlc-3.0.0.aar" />
+    </platform>
+
 </plugin>
