@@ -9,16 +9,16 @@
     <keywords>audio,stream,radio</keywords>
     <repo>https://github.com/wnyc/cordova-plugin-vlc.git</repo>
 
-  <js-module src="www/audioplayer.js" name="AudioPlayer">
-    <clobbers target="audioplayer"/>
-  </js-module>
+    <js-module src="www/audioplayer.js" name="AudioPlayer">
+        <clobbers target="audioplayer"/>
+    </js-module>
 
-  <dependency id="org.apache.cordova.device" />
-  <dependency id="org.apache.cordova.media" />
-  <dependency id="org.apache.cordova.network-information" />
+    <dependency id="org.apache.cordova.device" />
+    <dependency id="org.apache.cordova.media" />
+    <dependency id="org.apache.cordova.network-information" />
 
-  <!-- ios -->
-  <platform name="ios">
+    <!-- ios -->
+    <platform name="ios">
         <config-file target="config.xml" parent="/*">
             <feature name="AudioPlayerPlugin">
                 <param name="ios-package" value="VLCPlugin" />
@@ -46,4 +46,40 @@
         <framework src="libbz2.dylib" />
         <framework src="libiconv.dylib" />
     </platform>
+
+    <!-- android -->
+    <platform name="android">
+        <config-file target="res/xml/config.xml" parent="/*">
+            <feature name="AudioPlayerPlugin" >
+                <param name="android-package" 
+                    value="org.nypr.cordova.vlcplugin.VLCPlugin"/>
+                </feature>
+            </config-file>
+
+            <config-file target="AndroidManifest.xml" parent="/*">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+              <uses-permission android:name="android.permission.WAKE_LOCK" />
+              <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+              <uses-permission android:name="android.permission.BROADCAST_STICKY" />
+
+          </config-file>
+
+          <config-file target="AndroidManifest.xml" parent="/manifest/application">
+          <service android:name="org.nypr.cordova.playerhaterplugin.VLCPlayerService" android:exported="false" />
+
+      </config-file>
+
+      <source-file src="res/android/layout-v11/nypr_ph_hc_notification.xml" target-dir="res/layout-v11" />
+      <source-file src="src/android/org/nypr/cordova/vlcplugin" target-dir="src/org/nypr/cordova" />
+      <resource-file src="res/android/" target="res" />
+
+      <source-file src="lib/android/aacdecoder-android-0.8.jar" target-dir="libs" />
+      <source-file src="lib/android/vlc.jar" target-dir="libs" />
+      <source-file src="lib/android/mips" target-dir="libs" />
+      <source-file src="lib/android/x86" target-dir="libs" />
+      <source-file src="lib/android/armeabi" target-dir="libs" />
+      <source-file src="lib/android/armeabi-v7a" target-dir="libs" />
+
+  </platform>
 </plugin>
