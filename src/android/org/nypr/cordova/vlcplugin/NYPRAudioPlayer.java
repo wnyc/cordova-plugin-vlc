@@ -1,4 +1,4 @@
-package org.nypr.cordova.playerhaterplugin;
+package org.nypr.cordova.vlcplugin;
 
 import android.content.Context;
 import android.net.Uri;
@@ -8,8 +8,8 @@ import android.util.Log;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.nypr.cordova.playerhaterplugin.OnAudioInterruptListener;
-import org.nypr.cordova.playerhaterplugin.OnAudioStateUpdatedListenerVLC;
+import org.nypr.cordova.vlcplugin.OnAudioInterruptListener;
+import org.nypr.cordova.vlcplugin.OnAudioStateUpdatedListenerVLC;
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
@@ -48,8 +48,6 @@ public class NYPRAudioPlayer implements MediaPlayer.EventListener {
         mContext = context;
         mListener = listener;
         mPendingInterrupts = new HashSet<OnAudioInterruptListener.INTERRUPT_TYPE>();
-//        mHater = PlayerHater.bind(mContext);
-//        mHater.setLocalPlugin(new BasicPlayerHaterListenerPlugin(this, this));
 
         libVLC = new LibVLC();
         mediaPlayer = new MediaPlayer(libVLC);
@@ -271,66 +269,6 @@ public class NYPRAudioPlayer implements MediaPlayer.EventListener {
             }
         }
     }
-
-
-    /*protected void fireTransientState(STATE state) {
-        if (mListener != null) {
-            mListener.onAudioStateUpdated(state);
-        }
-    }
-
-    protected void fireState(STATE state) {
-        if (mListener != null) {
-            if (!state.equals(mLastStateFired)) {
-                mListener.onAudioStateUpdated(state);
-            }
-            mLastStateFired = state;
-        }
-    }
-
-    protected void fireState() {
-        if (mListener != null) {
-            STATE state = getState();
-            fireState(state);
-            mLastStateFired = state;
-        }
-    }
-
-    protected STATE getState() {
-        return translateState();
-    }
-
-    protected STATE translateState() {
-        STATE state = STATE.MEDIA_NONE;
-
-        if (mediaPlayer != null) {
-            switch (mediaPlayer.getPlayerState()) {
-                case IPlayerHater.STATE_IDLE:
-                    state = STATE.MEDIA_NONE;
-                    break;
-                case IPlayerHater.STATE_LOADING: // player service is loading, not track
-                    state = STATE.MEDIA_LOADING;
-                    break;
-                case IPlayerHater.STATE_PLAYING:
-                case IPlayerHater.STATE_STREAMING:
-                    state = STATE.MEDIA_RUNNING;
-                    break;
-                case IPlayerHater.STATE_PAUSED:
-                    state = STATE.MEDIA_PAUSED;
-                    break;
-                case IPlayerHater.STATE_INVALID:
-                    //state=STATE.; // ?? what here?
-                    break;
-            }
-        }
-        return state;
-    }
-
-    public void fireAudioStateUpdated() {
-        if (mListener != null) {
-            mListener.onAudioStateUpdated(currentStateType);
-        }
-    }*/
 
     public void fireAudioStateUpdated() {
         if (mListener != null && previousEvent != null) {

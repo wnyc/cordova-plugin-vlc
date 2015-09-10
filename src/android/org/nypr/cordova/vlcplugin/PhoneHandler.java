@@ -1,7 +1,7 @@
-package org.nypr.cordova.playerhaterplugin;
+package org.nypr.cordova.vlcplugin;
 
 
-import org.nypr.cordova.playerhaterplugin.OnAudioInterruptListener.INTERRUPT_TYPE;
+import org.nypr.cordova.vlcplugin.OnAudioInterruptListener.INTERRUPT_TYPE;
 
 import android.content.BroadcastReceiver;
 import android.content.Context;

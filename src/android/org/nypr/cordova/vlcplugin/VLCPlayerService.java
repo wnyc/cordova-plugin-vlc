@@ -1,4 +1,4 @@
-package org.nypr.cordova.playerhaterplugin;
+package org.nypr.cordova.vlcplugin;
 
 import android.app.Service;
 import android.content.Context;
