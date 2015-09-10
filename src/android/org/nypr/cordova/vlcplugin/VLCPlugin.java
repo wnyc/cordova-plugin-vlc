@@ -1,4 +1,4 @@
-package org.nypr.cordova.playerhaterplugin;
+package org.nypr.cordova.vlcplugin;
 
 import java.io.File;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import android.util.Log;
 
 import org.videolan.libvlc.MediaPlayer;
 
-public class PlayerHaterPlugin extends CordovaPlugin implements OnAudioInterruptListener, OnAudioStateUpdatedListenerVLC {
+public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener, OnAudioStateUpdatedListenerVLC {
 
     private static final String INIT = "init";
     private static final String PLAY_STREAM = "playstream";
@@ -40,7 +40,7 @@ public class PlayerHaterPlugin extends CordovaPlugin implements OnAudioInterrupt
     private static final String GET_AUDIO_STATE = "getaudiostate";
 
 
-    protected static final String LOG_TAG = "PlayerHaterPlugin";
+    protected static final String LOG_TAG = "VLCPlugin";
     protected static CordovaWebView mCachedWebView = null;
 
     protected PhoneHandler mPhoneHandler = null;
@@ -64,7 +64,7 @@ public class PlayerHaterPlugin extends CordovaPlugin implements OnAudioInterrupt
                                        IBinder service) {
             // We've bound to AudioPlayerService, cast the IBinder and get service instance
             playerService = ((VLCPlayerService.LocalBinder) service).getService();
-            playerService.setAudioStateListener(PlayerHaterPlugin.this);
+            playerService.setAudioStateListener(VLCPlugin.this);
         }
 
         @Override
