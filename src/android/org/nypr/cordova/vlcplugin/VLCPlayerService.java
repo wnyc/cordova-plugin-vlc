@@ -1,5 +1,8 @@
 package org.nypr.cordova.vlcplugin;
 
+import android.app.Activity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -7,10 +10,14 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
+import android.widget.RemoteViews;
 
+import org.apache.cordova.LOG;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.nypr.android.R;
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
@@ -21,25 +28,41 @@ import java.util.HashSet;
 
 public class VLCPlayerService extends Service implements MediaPlayer.EventListener {
 
+    private static final String LOG_TAG = "VLCPlayerService";
+    private static final int NOTIFICATION_ID = 100;
+
     public class LocalBinder extends Binder {
+
         public VLCPlayerService getService() {
             return VLCPlayerService.this;
         }
+
     }
 
     private LocalBinder binder = new LocalBinder();
 
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d("Service", "Service bound");
+        Log.d(LOG_TAG, "Service bound");
         return binder;
+    }
+
+    @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        int i = super.onStartCommand(intent, flags, startId);
+
+        if (intent == null) {
+            mNotificationManager.cancel(NOTIFICATION_ID);
+            this.stopSelf();
+        }
+        return i;
     }
 
     @Override
     public void onCreate() {
         super.onCreate();
 
-        Log.d("Service", "Service created");
+        Log.d(LOG_TAG, "Service created");
 
         mPendingInterrupts = new HashSet<OnAudioInterruptListener.INTERRUPT_TYPE>();
 
@@ -48,14 +71,17 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         mediaPlayer.setEventListener(this);
 
         Log.d(LOG_TAG, "Started NYPR Audio Player");
+
+        remoteViews = new RemoteViews(getPackageName(), R.layout.nypr_ph_hc_notification);
+        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
     @Override
     public boolean onUnbind(Intent intent) {
+        Log.d(LOG_TAG, "Unbinding Service");
+        mNotificationManager.cancel(NOTIFICATION_ID);
         return super.onUnbind(intent);
     }
-
-    protected static final String LOG_TAG = "VLCPlayerService";
 
     protected HashSet<OnAudioInterruptListener.INTERRUPT_TYPE> mPendingInterrupts;
     protected OnAudioStateUpdatedListenerVLC mListener;
@@ -64,7 +90,9 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private MediaPlayer mediaPlayer;
     private Media currentlyPlaying;
     private MediaPlayer.Event previousEvent;
-    private float position;
+    private RemoteViews remoteViews;
+    public Activity cordovaActivity;
+    NotificationManager mNotificationManager;
 
     private int currentStateType;
 
@@ -84,7 +112,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     public JSONObject checkForExistingAudio() throws JSONException {
-        Log.d("LOG_TAG", "On startup, checking service for pre-existing audio...");
+        Log.d(LOG_TAG, "On startup, checking service for pre-existing audio...");
         JSONObject json = null;
 
 
@@ -105,10 +133,6 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     public boolean isPlaying() {
-        // use mHater.isPlaying()/mHater.isLoading() -- test to make sure they work
-
-        //return getState().equals(STATE.MEDIA_LOADING) || getState().equals(STATE.MEDIA_RUNNING) || getState().equals(STATE.MEDIA_PAUSED) || getState().equals(STATE.MEDIA_STARTING);
-
         return mediaPlayer != null && mediaPlayer.isPlaying();
     }
 
@@ -182,11 +206,40 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         // Song song = Songs.fromBundle(bundle);
         Media media = new Media(libVLC, uri);
 
+        int estimatedDuration = 0;
+        try {
+            estimatedDuration = audioJson.getInt("estimated_duration");
+        } catch (JSONException e) {
+            Log.e(LOG_TAG, e.getMessage());
+        }
+        float pct = position / (float) estimatedDuration;
+
+        remoteViews.setTextViewText(R.id.zzz_ph_notification_title, title);
+        remoteViews.setTextViewText(R.id.zzz_ph_notification_text, artist);
+
+        PendingIntent closeAppIntent = PendingIntent.getBroadcast(this, 1, new Intent(this, NotificationReceiver.class), 0);
+
+        remoteViews.setOnClickPendingIntent(R.id.zzz_ph_stop_button, closeAppIntent);
+
+        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, new Intent(this, cordovaActivity.getClass()), PendingIntent.FLAG_UPDATE_CURRENT);
+
+        NotificationCompat.Builder mBuilder = new NotificationCompat
+                .Builder(this)
+                .setSmallIcon(R.drawable.zzz_ph_ic_notification)
+                .setContent(remoteViews)
+                .setOngoing(true)
+                .setContentIntent(pendingIntent);
+
+
+        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        // mId allows you to update the notification later on.
+        mNotificationManager.notify(NOTIFICATION_ID, mBuilder.build());
+
         // play the Song
-        startPlaying(media, position);
+        startPlaying(media, pct);
     }
 
-    protected void startPlaying(Media media, int position) throws IOException {
+    protected void startPlaying(Media media, float position) throws IOException {
         // TODO - perform an inventory of interrupts
 
         Log.d(LOG_TAG, "Starting Stream from Song--" + media.getUri().toString());
@@ -198,7 +251,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
             mediaPlayer.setMedia(media);
             mediaPlayer.play();
-            mediaPlayer.setPosition(this.position);
+            mediaPlayer.setPosition(position);
         }
     }
 
@@ -207,7 +260,6 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         // check queue position as a secondary check -- an edge condition exists where if a song completes, and pause is called afterward, a crash occurs
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
-            this.position = mediaPlayer.getPosition();
         } else {
 //            Log.d(LOG_TAG, "No audio playing -- skipping pause. isPlaying=" + mediaPlayer.isPlaying() + "; getQueuePosition()=" + mHater.getQueuePosition());
         }
@@ -222,11 +274,12 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         Log.d(LOG_TAG, "Seek Audio. Interval: " + interval);
         if (mediaPlayer.getLength() > 0) {
             if (isPlaying()) {
-                float currentPosition = mediaPlayer.getPosition(); // ms
-                int newPosition = (int) (currentPosition + (interval));
-                Log.d(LOG_TAG, "Current/New Positions: " + currentPosition + "/" + newPosition);
+                float currentPosition = mediaPlayer.getPosition(); // this is a percentage
+                int newPosition = (int) ((currentPosition * mediaPlayer.getLength()) + interval);
+                Log.d(LOG_TAG, "New Position: " + newPosition);
                 if (mediaPlayer.isSeekable()) {
-                    float percentage = newPosition / mediaPlayer.getMedia().getDuration();
+                    long duration = mediaPlayer.getMedia().getDuration();
+                    float percentage = newPosition / (float) duration;
                     mediaPlayer.setPosition(percentage);
                 }
             } else {
@@ -241,7 +294,11 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         Log.d(LOG_TAG, "Seek Audio. Position: " + pos);
         if (mediaPlayer.getMedia().getDuration() > 0) {
             if (isPlaying() && mediaPlayer.isSeekable()) {
-                mediaPlayer.setPosition(pos / (float) getDuration());
+                float duration = (float) getDuration();
+                float pct = pos / duration;
+                Log.d(LOG_TAG, "PCT = " + pos + " / " + duration + " = " + pct);
+
+                mediaPlayer.setPosition(pct);
             } else {
                 Log.d(LOG_TAG, "Not currently playing, so not seeking");
             }
@@ -253,12 +310,10 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     public void stopPlaying() {
         Log.d(LOG_TAG, "Stopping Stream");
         if (mediaPlayer != null) {
-            if (mediaPlayer.isPlaying() || mediaPlayer.getPlayerState() == 0) {
+            if (mediaPlayer.isPlaying()/* || mediaPlayer.getPlayerState() == 0*/) {
                 mediaPlayer.stop();
-                position = 0;
             }
         }
-//        mPlaying = null;
         // clear interrupts
         mPendingInterrupts.clear();
     }
@@ -304,7 +359,15 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     public int getDuration() {
-        return (int) mediaPlayer.getLength();
+        return (int) mediaPlayer.getMedia().getDuration();
+    }
+
+    public Activity getCordovaActivity() {
+        return cordovaActivity;
+    }
+
+    public void setCordovaActivity(Activity cordovaActivity) {
+        this.cordovaActivity = cordovaActivity;
     }
 
     @Override
@@ -316,7 +379,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             currentStateType = stateType;
             previousEvent = event;
 
-            Log.d("Event", String.valueOf(currentStateType));
+            Log.d(LOG_TAG, String.valueOf(currentStateType));
         }
     }
 }

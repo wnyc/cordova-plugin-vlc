@@ -67,6 +67,7 @@
 
           <config-file target="AndroidManifest.xml" parent="/manifest/application">
           <service android:name="org.nypr.cordova.vlcplugin.VLCPlayerService" android:exported="false" />
+          <receiver android:name="org.nypr.cordova.vlcplugin.NotificationReceiver" />
 
       </config-file>
 

@@ -65,6 +65,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
             // We've bound to AudioPlayerService, cast the IBinder and get service instance
             playerService = ((VLCPlayerService.LocalBinder) service).getService();
             playerService.setAudioStateListener(VLCPlugin.this);
+            playerService.setCordovaActivity(cordova.getActivity());
         }
 
         @Override
@@ -83,8 +84,6 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
         }
 
         if (playerService == null) {
-//            mAudioPlayer = new NYPRAudioPlayer(cordova.getActivity().getApplicationContext(), this);
-
             Intent intent = new Intent(cordova.getActivity(), VLCPlayerService.class);
             cordova.getActivity().startService(intent);
             cordova.getActivity().bindService(intent, playerServiceConnection, 0);
@@ -118,7 +117,12 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
             if (action.equalsIgnoreCase(INIT)) {
 
-                JSONObject audio = playerService.checkForExistingAudio();
+                JSONObject audio = null;
+
+                if (playerService != null) {
+                    audio = playerService.checkForExistingAudio();
+                }
+
                 PluginResult pluginResult;
 
                 if (audio != null) {
@@ -217,7 +221,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
                 callbackContext.sendPluginResult(pluginResult);
 
             } else if (action.equals(STOP)) {
-                playerService.pausePlaying();
+                playerService.stopPlaying();
 
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
                 pluginResult.setKeepCallback(true);
@@ -262,6 +266,12 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
             ret = false;
         }
         return ret;
+    }
+
+    @Override
+    public void onDestroy() {
+//        playerService.unbindService(playerServiceConnection);
+        super.onDestroy();
     }
 
     public static String stripArgumentsFromFilename(String filename) {
