@@ -78,9 +78,20 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
     @Override
     public boolean onUnbind(Intent intent) {
+        boolean b = super.onUnbind(intent);
         Log.d(LOG_TAG, "Unbinding Service");
         mNotificationManager.cancel(NOTIFICATION_ID);
-        return super.onUnbind(intent);
+        this.stopSelf();
+        return b;
+    }
+
+    @Override
+    public void onDestroy() {
+        mediaPlayer.stop();
+        libVLC.release();
+
+        super.onDestroy();
+        Log.d(LOG_TAG, "Service Destroyed");
     }
 
     protected HashSet<OnAudioInterruptListener.INTERRUPT_TYPE> mPendingInterrupts;
@@ -249,9 +260,16 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             // don't play, store new stream for when interrupt(s) go away
             // stream will be (re)started by resumeAudio
 
-            mediaPlayer.setMedia(media);
-            mediaPlayer.play();
-            mediaPlayer.setPosition(position);
+
+            Media currentMedia = mediaPlayer.getMedia();
+
+            if (currentMedia == null || !currentMedia.getUri().toString().equals(media.getUri().toString())) {
+                mediaPlayer.setMedia(media);
+                mediaPlayer.play();
+                mediaPlayer.setPosition(position);
+            } else {
+                mediaPlayer.play();
+            }
         }
     }
 

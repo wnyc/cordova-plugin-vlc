@@ -528,7 +528,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
     @Override
     public void onAudioProgressUpdated(int progress, int duration) {
-        Log.d(LOG_TAG, "Progress : " + progress);
+        Log.d(LOG_TAG, "Progress : " + progress + ", Duration : " + duration);
         if (this.connectionCallbackContext != null) {
             JSONObject o = new JSONObject();
             PluginResult result = null;
