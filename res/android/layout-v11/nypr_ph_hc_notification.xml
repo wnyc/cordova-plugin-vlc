@@ -38,54 +38,55 @@
         android:contentDescription="@string/zzz_ph_album_art"
         android:scaleType="center"
         android:alpha="0" />
-    
+
     <ImageView
         android:id="@+id/zzz_ph_stop_button"
         android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+        android:layout_height="fill_parent"
         android:layout_alignParentRight="true"
         android:layout_centerVertical="true"
         android:alpha="0.4"
-        android:background="?android:attr/selectableItemBackground"
+        android:background="@android:color/darker_gray"
         android:contentDescription="@string/zzz_ph_stop"
         android:padding="10dp"
         android:scaleType="center"
         android:src="@drawable/zzz_ph_bt_stop" />
 
-  <!--   <ImageView
-        android:id="@+id/zzz_ph_skip_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:layout_toLeftOf="@id/zzz_ph_stop_button"
-        android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="@string/zzz_ph_skip"
-        android:padding="8dp"
-        android:scaleType="center"
-        android:src="@drawable/zzz_ph_bt_skip" /> --> 
+    <!--   <ImageView
+          android:id="@+id/zzz_ph_skip_button"
+          android:layout_width="wrap_content"
+          android:layout_height="wrap_content"
+          android:layout_centerVertical="true"
+          android:layout_toLeftOf="@id/zzz_ph_stop_button"
+          android:background="?android:attr/selectableItemBackground"
+          android:contentDescription="@string/zzz_ph_skip"
+          android:padding="8dp"
+          android:scaleType="center"
+          android:src="@drawable/zzz_ph_bt_skip" /> -->
 
-   <!-- <ImageView
-        android:id="@+id/zzz_ph_play_pause_button"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_centerVertical="true"
-        android:layout_toLeftOf="@id/zzz_ph_skip_button"
-        android:background="?android:attr/selectableItemBackground"
-        android:contentDescription="@string/zzz_ph_toggle_play"
-        android:padding="8dp"
-        android:src="@drawable/zzz_ph_bt_pause" /> --> 
+    <!-- <ImageView
+         android:id="@+id/zzz_ph_play_pause_button"
+         android:layout_width="wrap_content"
+         android:layout_height="wrap_content"
+         android:layout_centerVertical="true"
+         android:layout_toLeftOf="@id/zzz_ph_skip_button"
+         android:background="?android:attr/selectableItemBackground"
+         android:contentDescription="@string/zzz_ph_toggle_play"
+         android:padding="8dp"
+         android:src="@drawable/zzz_ph_bt_pause" /> -->
 
-        <!-- android:layout_toLeftOf="@id/zzz_ph_play_pause_button" -->
+    <!-- android:layout_toLeftOf="@id/zzz_ph_play_pause_button" -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-		android:layout_toLeftOf="@id/zzz_ph_stop_button"
+        android:layout_toLeftOf="@id/zzz_ph_stop_button"
         android:layout_toRightOf="@id/zzz_ph_notification_image_default"
         android:orientation="vertical" >
 
         <TextView
             android:id="@+id/zzz_ph_notification_title"
             style="@android:style/TextAppearance.StatusBar.EventContent.Title"
+            android:textColor="@android:color/darker_gray"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_gravity="bottom"
