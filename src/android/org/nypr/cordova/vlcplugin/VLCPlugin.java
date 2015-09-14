@@ -70,6 +70,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
         @Override
         public void onServiceDisconnected(ComponentName arg0) {
+            cordova.getActivity().finish();
         }
     };
 
@@ -268,12 +269,6 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
         return ret;
     }
 
-    @Override
-    public void onDestroy() {
-//        playerService.unbindService(playerServiceConnection);
-        super.onDestroy();
-    }
-
     public static String stripArgumentsFromFilename(String filename) {
         int q = filename.lastIndexOf("?");
         if (q >= 0) {
@@ -434,8 +429,6 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
     @Override
     public void onAudioStateUpdated(MediaPlayer.Event event) {
-//        Log.d(LOG_TAG, "onAudioStateUpdated " + state + "; " + state.toString());
-
         if (this.connectionCallbackContext != null) {
             JSONObject o = new JSONObject();
             PluginResult result = null;

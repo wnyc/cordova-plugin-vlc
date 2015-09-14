@@ -13,7 +13,6 @@ public class NotificationReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         Log.d("NotificationReceiver", "Broadcast received, closing service");
         context.stopService(new Intent(context, VLCPlayerService.class));
-        CordovaApp.closeApplication();
     }
 
 }

@@ -278,6 +278,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         // check queue position as a secondary check -- an edge condition exists where if a song completes, and pause is called afterward, a crash occurs
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
+
         } else {
 //            Log.d(LOG_TAG, "No audio playing -- skipping pause. isPlaying=" + mediaPlayer.isPlaying() + "; getQueuePosition()=" + mHater.getQueuePosition());
         }
