@@ -77,6 +77,7 @@
 
       <source-file src="lib/aacdecoder-android-0.8.jar" target-dir="libs" />
       <source-file src="lib/vlc.jar" target-dir="libs" />
+      <source-file src="lib/google-play-services.jar" target-dir="libs" />
       <source-file src="lib/mips" target-dir="libs" />
       <source-file src="lib/x86" target-dir="libs" />
       <source-file src="lib/armeabi" target-dir="libs" />
