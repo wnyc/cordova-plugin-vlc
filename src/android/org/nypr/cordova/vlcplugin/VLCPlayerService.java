@@ -4,8 +4,12 @@ import android.app.Activity;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.Bundle;
@@ -13,6 +17,7 @@ import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.widget.RemoteViews;
+import android.widget.Toast;
 
 import org.apache.cordova.LOG;
 import org.json.JSONException;
@@ -40,6 +45,58 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     private LocalBinder binder = new LocalBinder();
+
+    private BroadcastReceiver receiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            ConnectivityManager conn = (ConnectivityManager)
+                    context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            NetworkInfo networkInfo = conn.getActiveNetworkInfo();
+
+            // Checks the user prefs and the network connection. Based on the result, decides whether
+            // to refresh the display or keep the current display.
+            // If the userpref is Wi-Fi only, checks to see if the device has a Wi-Fi connection.
+            if (networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
+                // If device has its Wi-Fi connection, sets refreshDisplay
+                // to true. This causes the display to be refreshed when the user
+                // returns to the app.
+//                Toast.makeText(context, "Wifi!", Toast.LENGTH_SHORT).show();
+
+                if (lastConnectionType == -1 && !mediaPlayer.isPlaying()) {
+                    mediaPlayer.setMedia(currentlyPlaying);
+                    mediaPlayer.play();
+                    mediaPlayer.setPosition(lastPosition);
+                }
+
+                lastConnectionType = networkInfo.getType();
+                // If the setting is ANY network and there is a network connection
+                // (which by process of elimination would be mobile), sets refreshDisplay to true.
+            } else if (networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
+
+                // Otherwise, the app can't download content--either because there is no network
+                // connection (mobile or Wi-Fi), or because the pref setting is WIFI, and there
+                // is no Wi-Fi connection.
+                // Sets refreshDisplay to false.
+//                Toast.makeText(context, "Cell!", Toast.LENGTH_SHORT).show();
+
+                if (lastConnectionType == -1 && !mediaPlayer.isPlaying()) {
+                    mediaPlayer.setMedia(currentlyPlaying);
+                    mediaPlayer.play();
+                    mediaPlayer.setPosition(lastPosition);
+                }
+
+                lastConnectionType = networkInfo.getType();
+            } else {
+                Toast.makeText(context, "Lost Connection", Toast.LENGTH_SHORT).show();
+
+                // Save the position for when we get network connection back
+                lastPosition = mediaPlayer.getPosition();
+                mediaPlayer.pause();
+                lastConnectionType = -1;
+            }
+
+        }
+    };
 
     @Override
     public IBinder onBind(Intent intent) {
@@ -74,6 +131,12 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
         remoteViews = new RemoteViews(getPackageName(), R.layout.nypr_ph_hc_notification);
         mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        IntentFilter filter = new IntentFilter();
+        filter.addAction("android.net.conn.CONNECTIVITY_CHANGE");
+        registerReceiver(receiver, filter);
+
+        mediaPlayer.setAudioDelay(4000);
     }
 
     @Override
@@ -90,6 +153,8 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         mediaPlayer.stop();
         libVLC.release();
 
+        unregisterReceiver(receiver);
+
         super.onDestroy();
         Log.d(LOG_TAG, "Service Destroyed");
     }
@@ -104,6 +169,8 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private RemoteViews remoteViews;
     public Activity cordovaActivity;
     NotificationManager mNotificationManager;
+    private float lastPosition;
+    private int lastConnectionType;
 
     private int currentStateType;
 
@@ -120,6 +187,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
     public void setAudioStateListener(OnAudioStateUpdatedListenerVLC mListener) {
         this.mListener = mListener;
+        Log.d(LOG_TAG, "Set Audio State Listener " + mListener);
     }
 
     public JSONObject checkForExistingAudio() throws JSONException {
@@ -267,6 +335,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 mediaPlayer.setMedia(media);
                 mediaPlayer.play();
                 mediaPlayer.setPosition(position);
+                currentlyPlaying = media;
             } else {
                 mediaPlayer.play();
             }
@@ -377,7 +446,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         }
     }
 
-    public int getDuration() {
+    public int getDuration() throws NullPointerException {
         return (int) mediaPlayer.getMedia().getDuration();
     }
 
@@ -393,7 +462,11 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     public void onEvent(MediaPlayer.Event event) {
         int stateType = event.type;
 
-        if (stateType != currentStateType) {
+        if (stateType == MediaPlayer.Event.EncounteredError) {
+            mListener.onAudioStreamingError(stateType);
+        }
+
+        if (stateType != currentStateType && mListener != null) {
             mListener.onAudioStateUpdated(event);
             currentStateType = stateType;
             previousEvent = event;
@@ -401,4 +474,5 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             Log.d(LOG_TAG, String.valueOf(currentStateType));
         }
     }
+
 }

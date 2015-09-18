@@ -460,7 +460,13 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
         if (event.type == MediaPlayer.Event.Stopped) {
             onAudioProgressUpdated(0, 0);
         } else if (event.type == MediaPlayer.Event.TimeChanged) {
-            onAudioProgressUpdated((int) event.getTimeChanged(), playerService.getDuration());
+            int duration;
+            try {
+                duration = playerService.getDuration();
+            } catch (NullPointerException e) {
+                return;
+            }
+            onAudioProgressUpdated((int) event.getTimeChanged(), duration);
         }
     }
 
