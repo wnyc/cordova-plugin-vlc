@@ -62,7 +62,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 // returns to the app.
 //                Toast.makeText(context, "Wifi!", Toast.LENGTH_SHORT).show();
 
-                if (lastConnectionType == -1 && !mediaPlayer.isPlaying()) {
+                if (lastConnectionType == -1 && !mediaPlayer.isPlaying() && restartAudioWhenConnected) {
                     mediaPlayer.setMedia(currentlyPlaying);
                     mediaPlayer.play();
                     mediaPlayer.setPosition(lastPosition);
@@ -79,7 +79,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 // Sets refreshDisplay to false.
 //                Toast.makeText(context, "Cell!", Toast.LENGTH_SHORT).show();
 
-                if (lastConnectionType == -1 && !mediaPlayer.isPlaying()) {
+                if (lastConnectionType == -1 && !mediaPlayer.isPlaying() && restartAudioWhenConnected) {
                     mediaPlayer.setMedia(currentlyPlaying);
                     mediaPlayer.play();
                     mediaPlayer.setPosition(lastPosition);
@@ -87,11 +87,18 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
                 lastConnectionType = networkInfo.getType();
             } else {
-                Toast.makeText(context, "Lost Connection", Toast.LENGTH_SHORT).show();
+                //Toast.makeText(context, "Lost Connection", Toast.LENGTH_SHORT).show();
 
                 // Save the position for when we get network connection back
                 lastPosition = mediaPlayer.getPosition();
-                mediaPlayer.pause();
+                if (mediaPlayer.isPlaying()) {
+                	mediaPlayer.pause();
+                	restartAudioWhenConnected = true;
+                }
+                else {
+                	mediaPlayer.stop();
+                	restartAudioWhenConnected = false;
+                }
                 lastConnectionType = -1;
             }
 
@@ -171,7 +178,8 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     NotificationManager mNotificationManager;
     private float lastPosition;
     private int lastConnectionType;
-
+    private boolean restartAudioWhenConnected;
+    
     private int currentStateType;
 
     // AudioPlayer states
