@@ -17,9 +17,7 @@ import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 import android.widget.RemoteViews;
-import android.widget.Toast;
 
-import org.apache.cordova.LOG;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.nypr.android.R;
@@ -30,6 +28,8 @@ import org.videolan.libvlc.MediaPlayer;
 import java.io.IOException;
 import java.util.HashSet;
 
+import 	java.io.File;
+
 
 public class VLCPlayerService extends Service implements MediaPlayer.EventListener {
 
@@ -37,11 +37,9 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private static final int NOTIFICATION_ID = 100;
 
     public class LocalBinder extends Binder {
-
         public VLCPlayerService getService() {
             return VLCPlayerService.this;
         }
-
     }
 
     private LocalBinder binder = new LocalBinder();
@@ -49,59 +47,48 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            ConnectivityManager conn = (ConnectivityManager)
-                    context.getSystemService(Context.CONNECTIVITY_SERVICE);
+
+            ConnectivityManager conn = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
             NetworkInfo networkInfo = conn.getActiveNetworkInfo();
 
-            // Checks the user prefs and the network connection. Based on the result, decides whether
-            // to refresh the display or keep the current display.
-            // If the userpref is Wi-Fi only, checks to see if the device has a Wi-Fi connection.
-            if (networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_WIFI) {
-                // If device has its Wi-Fi connection, sets refreshDisplay
-                // to true. This causes the display to be refreshed when the user
-                // returns to the app.
-//                Toast.makeText(context, "Wifi!", Toast.LENGTH_SHORT).show();
+            if (networkInfo != null && (networkInfo.getType() == ConnectivityManager.TYPE_MOBILE ||
+                    networkInfo.getType() == ConnectivityManager.TYPE_WIFI)) {
 
+                // network connection obtained - restart audio if necessary
                 if (lastConnectionType == -1 && !mediaPlayer.isPlaying() && restartAudioWhenConnected) {
                     mediaPlayer.setMedia(currentlyPlaying);
                     mediaPlayer.play();
                     mediaPlayer.setPosition(lastPosition);
                 }
-
-                lastConnectionType = networkInfo.getType();
-                // If the setting is ANY network and there is a network connection
-                // (which by process of elimination would be mobile), sets refreshDisplay to true.
-            } else if (networkInfo != null && networkInfo.getType() == ConnectivityManager.TYPE_MOBILE) {
-
-                // Otherwise, the app can't download content--either because there is no network
-                // connection (mobile or Wi-Fi), or because the pref setting is WIFI, and there
-                // is no Wi-Fi connection.
-                // Sets refreshDisplay to false.
-//                Toast.makeText(context, "Cell!", Toast.LENGTH_SHORT).show();
-
-                if (lastConnectionType == -1 && !mediaPlayer.isPlaying() && restartAudioWhenConnected) {
-                    mediaPlayer.setMedia(currentlyPlaying);
-                    mediaPlayer.play();
-                    mediaPlayer.setPosition(lastPosition);
-                }
-
                 lastConnectionType = networkInfo.getType();
             } else {
-                //Toast.makeText(context, "Lost Connection", Toast.LENGTH_SHORT).show();
 
-                // Save the position for when we get network connection back
-                lastPosition = mediaPlayer.getPosition();
-                if (mediaPlayer.isPlaying()) {
-                	mediaPlayer.pause();
-                	restartAudioWhenConnected = true;
+                boolean isLocalFile = false;
+                if (mediaPlayer.getMedia() != null &&
+                    mediaPlayer.getMedia().getUri() != null) {
+
+                    // check if audio is local
+                    File file = new File(mediaPlayer.getMedia().getUri().getPath());
+                    isLocalFile = file.exists();
                 }
-                else {
-                	mediaPlayer.stop();
-                	restartAudioWhenConnected = false;
+
+                // handle loss of network connection for remote audio
+                if (!isLocalFile) {
+                    // Save the position for when we get network connection back
+                    lastPosition = mediaPlayer.getPosition();
+
+                    if (mediaPlayer.isPlaying()) {
+                        mediaPlayer.pause();
+                        restartAudioWhenConnected = true;
+                    } else {
+                        mediaPlayer.stop();
+                        restartAudioWhenConnected = false;
+                    }
+                } else {
+                    restartAudioWhenConnected = false;
                 }
                 lastConnectionType = -1;
             }
-
         }
     };
 
@@ -168,7 +155,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
     protected HashSet<OnAudioInterruptListener.INTERRUPT_TYPE> mPendingInterrupts;
     protected OnAudioStateUpdatedListenerVLC mListener;
-    protected STATE mLastStateFired;
+    //protected STATE mLastStateFired;
     private LibVLC libVLC;
     private MediaPlayer mediaPlayer;
     private Media currentlyPlaying;
@@ -183,6 +170,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private int currentStateType;
 
     // AudioPlayer states
+    /*
     public enum STATE {
         MEDIA_NONE,
         MEDIA_STARTING,
@@ -192,7 +180,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         MEDIA_LOADING,
         MEDIA_COMPLETED
     }
-
+    */
     public void setAudioStateListener(OnAudioStateUpdatedListenerVLC mListener) {
         this.mListener = mListener;
         Log.d(LOG_TAG, "Set Audio State Listener " + mListener);
@@ -215,27 +203,31 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         return json;
     }
 
+    /*
     public void onAudioStreamingError(int reason) {
         mListener.onAudioStreamingError(reason);
     }
+    */
 
     public boolean isPlaying() {
         return mediaPlayer != null && mediaPlayer.isPlaying();
     }
 
+    /*
     public void setAudioInfo(String title, String artist, String url) {
             /*
-             * TODO -- figure out a way to update notification data mid-stream
+             * figure out a way to update notification data mid-stream
 			 *
 			Bundle bundle = new Bundle();
 			bundle.putString("title", title);
 			bundle.putString("artist", artist);
 			bundle.putParcelable("uri", Uri.parse(url));
-			mPlaying = Songs.fromBundle(bundle);*/
+			mPlaying = Songs.fromBundle(bundle);*//*
 
         refreshAudioInfo();
     }
-
+    */
+    /*
     public void refreshAudioInfo() {
         if (mediaPlayer != null) {
             //Log.d(LOG_TAG, "NOT REFRESHING AUDIO INFO");
@@ -246,15 +238,17 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 			//	Uri uri=Uri.parse(url);
 				mHater.setAlbumArt(mPlaying.getAlbumArt());
 			//
-			 */
+			 *//*
 
 //            mediaPlayer.setTitle(currentlyPlaying.getMeta(Media.Meta.Title));
         }
     }
+    */
 
     public void startPlaying(String file, String title, String artist, String url, int position, JSONObject audioJson, boolean isStream) throws IOException {
         Log.d(LOG_TAG, "Starting Audio--" + file);
 
+        /*
         // handle m3u file
         if (file.toUpperCase().endsWith("M3U")) {
             Log.d(LOG_TAG, "M3U found, parsing...");
@@ -266,7 +260,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 Log.d(LOG_TAG, "No stream found in M3U");
             }
         }
-
+        */
         // create a Uri object for audio
         Uri uri = Uri.parse(file);
 
@@ -327,7 +321,6 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     protected void startPlaying(Media media, float position) throws IOException {
-        // TODO - perform an inventory of interrupts
 
         Log.d(LOG_TAG, "Starting Stream from Song--" + media.getUri().toString());
 
@@ -352,19 +345,17 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
     public void pausePlaying() {
         // make sure audio is playing
-        // check queue position as a secondary check -- an edge condition exists where if a song completes, and pause is called afterward, a crash occurs
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
-
-        } else {
-//            Log.d(LOG_TAG, "No audio playing -- skipping pause. isPlaying=" + mediaPlayer.isPlaying() + "; getQueuePosition()=" + mHater.getQueuePosition());
         }
     }
 
+    /*
     public void playerInterrupted() {
         Log.d(LOG_TAG, "Firing MEDIA_PAUSED on stream finish on error");
 //        this.fireTransientState(STATE.MEDIA_PAUSED);
     }
+    */
 
     public void seekAudio(int interval) {
         Log.d(LOG_TAG, "Seek Audio. Interval: " + interval);
@@ -458,10 +449,11 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         return (int) mediaPlayer.getMedia().getDuration();
     }
 
+    /*
     public Activity getCordovaActivity() {
         return cordovaActivity;
     }
-
+    */
     public void setCordovaActivity(Activity cordovaActivity) {
         this.cordovaActivity = cordovaActivity;
     }
