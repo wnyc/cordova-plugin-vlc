@@ -41,7 +41,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
 
     protected static final String LOG_TAG = "VLCPlugin";
-    protected static CordovaWebView mCachedWebView = null;
+//    protected static CordovaWebView mCachedWebView = null;
 
     protected PhoneHandler mPhoneHandler = null;
     protected CallbackContext connectionCallbackContext;
@@ -93,16 +93,16 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
 
         this.connectionCallbackContext = null;
 
-        if (mCachedWebView != null) {
+//        if (mCachedWebView != null) {
             // this is a hack to destroy the old web view if it exists, which happens when audio is playing, the main app activity is 'killed' but the audio keeps playing, and then the app is restarted.
             // performing the hack here instead of when the app activity is destroyed because the web view continues to function even though the activity is killed, so it will process javascript messages
             // from the plugin telling it that the track is complete, so it will move to the next track if necessary...
-            Log.d(LOG_TAG, "Found cached web view -- destroying...");
-            String summary = "<html><body>Clear out JS</body></html>";
+//            Log.d(LOG_TAG, "Found cached web view -- destroying...");
+//            String summary = "<html><body>Clear out JS</body></html>";
 //            mCachedWebView.loadData(summary, "text/html", null);
             // loadData doesn't exist as a method anymore!
-        }
-        mCachedWebView = webView;
+ //       }
+ //       mCachedWebView = webView;
 
         Log.d(LOG_TAG, "VLC Plugin initialized");
     }
@@ -222,7 +222,8 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
                 callbackContext.sendPluginResult(pluginResult);
 
             } else if (action.equals(STOP)) {
-                playerService.stopPlaying();
+                //playerService.stopPlaying();
+                playerService.pausePlaying();
 
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
                 pluginResult.setKeepCallback(true);
