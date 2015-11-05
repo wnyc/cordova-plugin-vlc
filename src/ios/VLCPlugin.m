@@ -8,6 +8,7 @@
 #import "CDVReachability.h"
 #import "VLCPlugin.h"
 #import "DDLog.h"
+#import <MWFeedParser/NSString+HTML.h>
 
 extern int ddLogLevel;
 
@@ -45,10 +46,22 @@ static NSString * const kVLCPluginAudioMetadataKeyLockscreenImageUrl = @"lockscr
 static NSString * const kVLCPluginVLCNetworkCachingKey = @"network-caching";
 static NSString * const kVLCPluginVLCStartTimeKey = @"start-time";
 
+static NSString * const kVLCPluginDiscoverAudioSelectedTypeKey = @"discoverAudioSelected";
+
+static NSString * const kVLCPluginSaveAudioTypeKey = @"saveAudio";
+static NSString * const kVLCPluginSaveAudioTypeKeyAudio = @"audio";
+static NSString * const kVLCPluginIsAudioSaveAudioTypeKey = @"isAudioSaved";
+static NSString * const kVLCPluginNextSavedAudioTypeKey = @"nextSavedAudio";
+static NSString * const kVLCPluginPreviousSavedAudioTypeKey = @"previousSavedAudio";
+
+static NSString * const kVLCPluginSavedQueueTitle = @"queueTitle";
+static NSString * const kVLCPluginSavedQueueTitleMyPlaylist = @"My Playlist";
+
 static int const kVLCPluginWifiPrebuffer = 5000;
 static int const kVLCPluginWanPrebuffer = 10000;
 static int const kVLCPluginBufferTimeout = 60;
 static int const kVLCPluginHeartbeatTimeout = 60;
+static int const kVLCPluginRewindThreshold = 5000;
 
 NSString * const VLCPluginRemoteControlEventNotification = @"VLCPluginRemoteControlEventNotification";
 
@@ -63,6 +76,9 @@ typedef NSUInteger NYPRExtraMediaStates;
 @interface VLCPlugin ()
 
 @property VLCMediaPlayer *mediaPlayer;
+@property NYPRAudioPlayerViewController *audioPlayerViewController;
+@property id <NYPRDiscoverAudioPlayerDelegate>discoverAudioPlaybackDelegate;
+@property NYPRAudio *audio;
 @property NSString *callbackId;
 @property NSDictionary *currentAudio;
 @property NSTimer *flushBufferTimer;
@@ -72,6 +88,9 @@ typedef NSUInteger NYPRExtraMediaStates;
 @property NSURLSessionDataTask *lockscreenImageDownloadTask;
 @property NSTimer *heartbeatTimer;
 @property NSTimeInterval lastHeartbeat;
+
+@property (nonatomic) BOOL isDiscoverAudioSelected;
+@property (nonatomic) BOOL isPlayingSavedAudioQueue;
 
 @end
 
@@ -106,6 +125,15 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     DDLogInfo(@"VLC Plugin initialized");
     DDLogInfo(@"VLC Library Version %@", [[VLCLibrary sharedLibrary] version]);
+    [self configureForDiscoverSDK];
+}
+
+- (void)configureForDiscoverSDK {
+    [NYPRDiscoverSDK setUseAudioPlayer:NO];
+    [NYPRDiscoverSDK setAudioPlayer:self];
+    self.audioPlayerViewController = [NYPRDiscoverSDK getDiscoverPlayerViewController];
+    self.audioPlayerViewController.delegate = self;
+    self.discoverAudioPlaybackDelegate = [NYPRDiscoverSDK getDiscoverAudioPlaybackDelegate];
 }
 
 - (void)init:(CDVInvokedUrlCommand*)command {
@@ -185,14 +213,21 @@ typedef NSUInteger NYPRExtraMediaStates;
 #pragma Audio playback commands
 
 - (void)playstream:(CDVInvokedUrlCommand *)command {
+    self.isDiscoverAudioSelected = NO;
+    self.isPlayingSavedAudioQueue = NO;
+    
+    NYPRStream *stream = [NYPRStream createStream:[[NYPRPersistentStack sharedInstance] managedObjectContext]];
+    [stream loadFromDictionary:[command.arguments lastObject]];
+    
+    self.audio = stream;
+    self.audioPlayerViewController.audio = self.audio;
+
     CDVPluginResult* pluginResult = nil;
-    NSDictionary  * params = [command.arguments  objectAtIndex:0];
-    NSString* url = [params objectForKey:kVLCPluginJSONIOSUrlKey];
-    NSDictionary  * info = [command.arguments  objectAtIndex:1];
+    NSString* url = [stream.url absoluteString];
     
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
-            [self vlc_playstream:url info:info];
+            [self vlc_playstream:url info:[self lockScreenMetadataForAudio:self.audio]];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
             DDLogInfo (@"VLC Plugin cannot play stream because the internet is not reachable");
@@ -238,15 +273,33 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
 }
 
-- (void)playfile:(CDVInvokedUrlCommand *)command {
-    CDVPluginResult* pluginResult = nil;
-    NSString* fullFilename = [command.arguments objectAtIndex:0];
-    NSDictionary  * info = [command.arguments  objectAtIndex:1];
-    NSInteger position = 0;
+- (void)playfile:(CDVInvokedUrlCommand *)command {    
+    NSDictionary *metadata = [command.arguments lastObject];
+    NYPROnDemand *audio = [NYPROnDemand createOnDemandFromCordovaDictionary:metadata];
+
+    self.isDiscoverAudioSelected = NO;
+    self.isPlayingSavedAudioQueue = [[metadata objectForKey:kVLCPluginSavedQueueTitle] isEqualToString:kVLCPluginSavedQueueTitleMyPlaylist] ? YES : NO;
     
     if ( command.arguments.count > 2 && [command.arguments objectAtIndex:2] != (id)[NSNull null] ) {
-        position = [[command.arguments objectAtIndex:2] integerValue];
+        audio.elapsedTime = [command.arguments objectAtIndex:2];
     }
+    
+    [self playAudio:audio];
+}
+
+- (void)playAudio:(NYPRAudio *)audio {
+    
+    if ([[self.audio.playableUrl absoluteString] isEqualToString:[audio.playableUrl absoluteString]] && self.audio.state != NYPRAudioStatePaused && self.audio.state != NYPRAudioStateStopped) {
+        return;
+    }
+    
+    CDVPluginResult *pluginResult = nil;
+    
+    self.audio = audio;
+    self.audioPlayerViewController.audio = self.audio;
+    
+    NSString *fullFilename = [audio.playableUrl absoluteString];
+    NSInteger position = [audio.elapsedTime integerValue];
     
     if ( fullFilename && fullFilename != (id)[NSNull null] ) {
         
@@ -269,11 +322,11 @@ typedef NSUInteger NYPRExtraMediaStates;
                 [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
             }
             [self.mediaPlayer play];
-            [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
+            [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
             
         } else {
-            [self playremotefile:command];
+            [self playRemoteAudio:audio];
         }
         
     }else {
@@ -282,20 +335,15 @@ typedef NSUInteger NYPRExtraMediaStates;
     }
     
     if (pluginResult!=nil) {
-        [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+        [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
     }
 }
 
-- (void)playremotefile:(CDVInvokedUrlCommand*)command {
+- (void)playRemoteAudio:(NYPRAudio *)audio {
     CDVPluginResult* pluginResult = nil;
     
-    NSString* url = [command.arguments objectAtIndex:0];
-    NSDictionary  * info = [command.arguments  objectAtIndex:1];
-    NSInteger position = 0;
-    
-    if (command.arguments.count>2 && [command.arguments objectAtIndex:2] != (id)[NSNull null]) {
-        position = [[command.arguments objectAtIndex:2] integerValue];
-    }
+    NSString* url = [audio.playableUrl absoluteString];
+    NSInteger position = [audio.elapsedTime integerValue];
     
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
@@ -314,7 +362,7 @@ typedef NSUInteger NYPRExtraMediaStates;
                 [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position-1)}];
             }
             [self.mediaPlayer play];
-            [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
+            [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
             DDLogInfo (@"VLC Plugin cannot play remote file because internet is not reachable");
@@ -325,74 +373,28 @@ typedef NSUInteger NYPRExtraMediaStates;
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"invalid remote file url"];
     }
     
-    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
 }
 
 - (void)pause:(CDVInvokedUrlCommand*)command {
-    DDLogInfo (@"VLC Plugin pausing playback");
-    if (self.mediaPlayer.isPlaying) {
-        [self.mediaPlayer pause];
-    }
-    
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
-}
-
-- (void)seek:(CDVInvokedUrlCommand*)command {
-    CDVPluginResult* pluginResult = nil;
-    NSInteger interval = [[command.arguments objectAtIndex:0] integerValue];
-    
-    if ([self.mediaPlayer isSeekable]){
-        DDLogInfo (@"VLC Plugin seeking to interval (%ld)", (long)interval );
-        if (interval>0){
-            [self.mediaPlayer jumpForward:((int)interval/1000)];
-        }else{
-            [self.mediaPlayer jumpBackward:(-1*(int)interval/1000)];
-        }
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    } else {
-        DDLogInfo (@"VLC Plugin current audio is not seekable" );
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
-    }
-    
-    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
-}
-
-- (void)seekto:(CDVInvokedUrlCommand*)command {
-    CDVPluginResult* pluginResult = nil;
-    NSInteger position = [[command.arguments objectAtIndex:0] integerValue];
-    
-    DDLogInfo (@"VLC Plugin seeking to position (%ld)", (long)position );
-    
-    if ([self.mediaPlayer isSeekable]){
-        float seconds=(float)position;
-        float length=(float)[[self.mediaPlayer.media length] intValue];
-        float percent=seconds / length;
-        [self.mediaPlayer setPosition:percent];
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    }else {
-        DDLogInfo (@"VLC Plugin current audio is not seekable" );
-        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
-    }
-    
-    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+    [self pauseWithCallbackId:command.callbackId];
 }
 
 - (void)stop:(CDVInvokedUrlCommand*)command {
-    CDVPluginResult* pluginResult = nil;
-
-    DDLogInfo (@"VLC Plugin stopping playback.");
-    if (self.mediaPlayer.isPlaying) {
-        [self.mediaPlayer stop];
-    }
-    
-    pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
-    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+    [self stopPlayback];
 }
 
 - (void)setaudioinfo:(CDVInvokedUrlCommand*)command{
     NSDictionary  * info = [command.arguments  objectAtIndex:0];
     [self vlc_setlockscreenmetadata:info refreshLockScreen:true];
+    
+    if ([self.audio isKindOfClass:[NYPRStream class]] && [info objectForKey:@"svg_logo"]) {
+        NYPRStream *stream = [NYPRStream createStream:[[NYPRPersistentStack sharedInstance] managedObjectContext]];
+        [stream loadFromDictionary:info];
+        self.audio = stream;
+        self.audio.state = self.mediaPlayer.state;
+        self.audioPlayerViewController.audio = self.audio;
+    }
 }
 
 - (void)vlc_setlockscreenmetadata:(NSDictionary*)metadata refreshLockScreen:(BOOL)refreshLockScreen {
@@ -402,12 +404,81 @@ typedef NSUInteger NYPRExtraMediaStates;
     }
 }
 
+#pragma mark Audio playback controls
+
+- (void)pauseWithCallbackId:(NSString *)callbackId {
+    DDLogInfo (@"VLC Plugin pausing playback");
+    if (self.mediaPlayer.isPlaying) {
+        [self.mediaPlayer pause];
+        
+        if (self.audio) {
+            self.audio.state = NYPRAudioStatePaused;
+        }
+    }
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self vlc_sendPluginResult:pluginResult callbackId:callbackId];
+}
+
+- (void)stopPlayback {
+    DDLogInfo (@"VLC Plugin stopping playback.");
+    if (self.mediaPlayer.isPlaying) {
+        [self.mediaPlayer stop];
+        self.audio.state = NYPRAudioStateStopped;
+        [self vlc_onAudioStreamUpdate:MEDIA_STOPPED description:[self vlc_convertAudioStateToString:MEDIA_STOPPED]];
+    }
+}
+
+- (void)seekTo:(NSInteger)position withCallbackId:(NSString *)callbackId {
+    CDVPluginResult* pluginResult = nil;
+    
+    DDLogInfo (@"VLC Plugin seeking to position (%ld)", (long)position );
+    
+    if ([self.mediaPlayer isSeekable]) {
+        float seconds=(float)position;
+        float length=(float)[[self.mediaPlayer.media length] intValue] / 1000;
+        float percent=seconds / length;
+        [self.mediaPlayer setPosition:percent];
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    }else {
+        DDLogInfo (@"VLC Plugin current audio is not seekable" );
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
+    }
+    
+    [self vlc_sendPluginResult:pluginResult callbackId:callbackId];
+}
+
+- (void)seekInterval:(NSInteger)interval withCallbackId:(NSString *)callbackId {
+    CDVPluginResult* pluginResult = nil;
+    
+    if ([self.mediaPlayer isSeekable]){
+        DDLogInfo (@"VLC Plugin seeking to interval (%ld)", (long)interval );
+        if (interval>0){
+            [self.mediaPlayer jumpForward:((int)interval)];
+        }else{
+            [self.mediaPlayer jumpBackward:(-1*(int)interval)];
+        }
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    } else {
+        DDLogInfo (@"VLC Plugin current audio is not seekable" );
+        pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsString:@"audio not seekable"];
+    }
+    
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+}
+
 #pragma mark Audio playback event handlers
 
 - (void)mediaPlayerTimeChanged:(NSNotification *)aNotification {
-    [self vlc_onAudioProgressUpdate:[[self.mediaPlayer time]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
+    [self updateAudioProgress];
     self.lastHeartbeat = [[NSDate date] timeIntervalSince1970];
     //DDLogInfo(@"mediaPlayerTimeChanged %d/%d/%d", [[self.mediaPlayer time]intValue], [[self.mediaPlayer remainingTime]intValue], [[self.mediaPlayer.media length] intValue]);
+}
+
+- (void)updateAudioProgress {
+    self.audio.duration = [self vlc_getDuration];
+    self.audio.elapsedTime = [self vlc_getElapsedTime];
+    [self vlc_onAudioProgressUpdate:[[self.mediaPlayer time]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
 }
 
 - (void)mediaPlayerStateChanged:(NSNotification *)aNotification {
@@ -435,7 +506,7 @@ typedef NSUInteger NYPRExtraMediaStates;
                         // for length:length -- the final call to it is for a time less than the track time, so simulate it here...
                         [self vlc_onAudioProgressUpdate:[[self.mediaPlayer.media length]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
                         // send complete event
-                        [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
+                        [self respondToPlaybackCompleted];
                     }
                 }
             }
@@ -468,6 +539,8 @@ typedef NSUInteger NYPRExtraMediaStates;
             break;
     };
     
+    self.audio.state = state;
+    
     description = [self vlc_convertAudioStateToString:state];
     
     if (state == MEDIA_RUNNING) {
@@ -486,6 +559,32 @@ typedef NSUInteger NYPRExtraMediaStates;
         // screen-locking is more appropriate for video.
         [UIApplication sharedApplication].idleTimerDisabled = NO;
     }
+}
+
+- (void)respondToPlaybackCompleted {
+    if (self.isDiscoverAudioSelected) {
+        self.audio.completed = YES;
+    } else if (self.isPlayingSavedAudioQueue) {
+        [self initiateNextSavedQueueAudioPlayback];
+    } else {
+        [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
+        self.audio = nil;
+        self.audioPlayerViewController.audio = nil;
+    }
+}
+
+- (void)initiateNextSavedQueueAudioPlayback {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginNextSavedAudioTypeKey };
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+}
+
+- (void)initiatePreviousSavedQueueAudioPlayback {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginPreviousSavedAudioTypeKey };
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
 }
 
 - (void) vlc_onAudioStreamUpdate:(int)state description:(NSString*)description {
@@ -508,18 +607,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
     
     [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
-}
-
-- (void) vlc_onAudioSkipNext {
-    NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONNextValue };
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
-    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
-}
-
-- (void) vlc_onAudioSkipPrevious {
-    NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONPreviousValue };
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
-    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
 }
 
 - (void) vlc_onRemoteControlEvent:(NSNotification *) notification {
@@ -554,13 +641,12 @@ typedef NSUInteger NYPRExtraMediaStates;
                 
             case UIEventSubtypeRemoteControlNextTrack:
                 DDLogInfo(@"VLC Plugin remote control next track");
-                [self vlc_onAudioSkipNext];
-                
+                [self nextButtonTapped];
                 break;
                 
             case UIEventSubtypeRemoteControlPreviousTrack:
                 DDLogInfo(@"VLC Plugin remote control previous track");
-                [self vlc_onAudioSkipPrevious];
+                [self previousButtonTapped];
                 break;
                 
             case UIEventSubtypeRemoteControlBeginSeekingBackward:
@@ -584,6 +670,12 @@ typedef NSUInteger NYPRExtraMediaStates;
                 break;
         }
     }
+}
+
+- (void)queueCompleted:(CDVInvokedUrlCommand*)command {
+    [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
+    self.audio = nil;
+    self.audioPlayerViewController.audio = nil;
 }
 
 #pragma mark Misc
@@ -687,6 +779,34 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 #pragma mark Lock Screen Metadata
 
+- (NSDictionary *)lockScreenMetadataForAudio:(NYPRAudio *)audio {
+    NSString *title = [self titleForAudio:audio];
+    NSString *subtitle = [self subtitleForAudio:audio];
+    NSString *imageFileUrl = [audio.imageFileUrl absoluteString] ? [audio.imageFileUrl absoluteString] : @"";
+    NSDictionary *metadata = @{kVLCPluginAudioMetadataKeyTitle : title, kVLCPluginAudioMetadataKeyArtist : subtitle, kVLCPluginAudioMetadataKeyLockscreenImageUrl : imageFileUrl };
+    return metadata;
+}
+
+- (NSString *)titleForAudio:(NYPRAudio *)audio {
+    NSString *title;
+    if ([audio isKindOfClass:[NYPRStream class]]) {
+        title = [(NYPRStream *)audio whatsOnDescription] ? [[(NYPRStream *)audio whatsOnDescription] stringByConvertingHTMLToPlainText] : @"";
+    } else {
+        title = audio.displayTitle ? audio.displayTitle : @"";
+    }
+    return title;
+}
+
+- (NSString *)subtitleForAudio:(NYPRAudio *)audio {
+    NSString *subtitle;
+    if ([audio isKindOfClass:[NYPRStream class]]) {
+        subtitle = [(NYPRStream *)audio showTitle] ? [(NYPRStream *)audio showTitle] : @"";
+    } else {
+        subtitle = audio.displaySubtitle ?  audio.displaySubtitle : @"";
+    }
+    return subtitle;
+}
+
 - (void) vlc_setNowPlayingInfo:(NSDictionary*)info retrieveLockscreenArt:(BOOL)retrieveLockscreenArt {
     
     NSString *title=@"";
@@ -722,6 +842,8 @@ typedef NSUInteger NYPRExtraMediaStates;
         mediaItemArtwork = [self vlc_getLockScreenImage:artworkURL retrieveLockscreenArt:retrieveLockscreenArt];
     }
     
+    NSNumber *playbackRate = self.mediaPlayer.isPlaying ? [NSNumber numberWithFloat:1.0f] : [NSNumber numberWithFloat:0.0f];
+    
     NSDictionary *nowPlaying;
     
     if (mediaItemArtwork) {
@@ -730,7 +852,8 @@ typedef NSUInteger NYPRExtraMediaStates;
             MPMediaItemPropertyArtist: artist,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsedPlaybackTime,
             MPMediaItemPropertyPlaybackDuration: playbackDuration,
-            MPMediaItemPropertyArtwork: mediaItemArtwork
+            MPMediaItemPropertyArtwork: mediaItemArtwork,
+            MPNowPlayingInfoPropertyPlaybackRate : playbackRate,
         };
     }
     else {
@@ -738,7 +861,8 @@ typedef NSUInteger NYPRExtraMediaStates;
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: artist,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: elapsedPlaybackTime,
-            MPMediaItemPropertyPlaybackDuration: playbackDuration
+            MPMediaItemPropertyPlaybackDuration: playbackDuration,
+            MPNowPlayingInfoPropertyPlaybackRate : playbackRate,
         };
     }
     
@@ -1012,6 +1136,117 @@ typedef NSUInteger NYPRExtraMediaStates;
         [fileManager createDirectoryAtPath:path withIntermediateDirectories:FALSE attributes:nil error:error];
         NSAssert(!error, @"Could not create directory at %@", path);
     }
+}
+
+#pragma mark NYPRDiscoverAudioPlayer Protocol methods
+
+- (void)playDiscoverFile:(NYPRAudio *)audio position:(NSInteger)position holdPlayback:(BOOL)holdPlayback reload:(BOOL)reload {
+    self.isDiscoverAudioSelected = YES;
+    self.isPlayingSavedAudioQueue = NO;
+    
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginDiscoverAudioSelectedTypeKey };
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+    
+    [self playAudio:audio];
+}
+
+- (void)pauseDiscover {
+    [self pauseWithCallbackId:self.callbackId];
+}
+
+- (void)stopDiscover {
+    [self stopPlayback];
+}
+
+- (void)audioPlayerSetAudioSaved:(NYPRAudio *)audio saved:(BOOL)saved {
+    [self setSavedAudio:audio];
+}
+
+- (void)audioPlayerGetAudioSaved:(NYPRAudio *)audio {
+    [self getSavedStatusForAudio:audio];
+}
+
+#pragma mark NYPRAudioPlayerViewControllerDelegate methods
+
+- (void)nextButtonTapped {
+    if (self.isDiscoverAudioSelected) {
+        [self playNextDiscoverTrack];
+    } else if (self.isPlayingSavedAudioQueue) {
+        [self initiateNextSavedQueueAudioPlayback];
+    }
+}
+
+- (void)previousButtonTapped {
+    if ([[self.mediaPlayer time] intValue] > kVLCPluginRewindThreshold && [self.audio isKindOfClass:[NYPROnDemand class]]) {
+        [self seekToPosition:0];
+        return;
+    }
+    
+    if (self.isDiscoverAudioSelected) {
+        [self.discoverAudioPlaybackDelegate discoverPlayerPreviousTrack];
+    } else if (self.isPlayingSavedAudioQueue) {
+        [self initiatePreviousSavedQueueAudioPlayback];
+    }
+}
+
+- (void)rewindButtonTapped:(NSInteger)interval {
+    [self seekInterval:interval withCallbackId:self.callbackId];
+}
+
+- (void)playButtonTapped {
+    if (self.mediaPlayer.state != VLCMediaPlayerStatePlaying) {
+        [self playAudio:self.audio];
+    }
+}
+
+- (void)pauseButtonTapped {
+    if (self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
+        [self.mediaPlayer pause];
+    }
+}
+
+- (void)seekToPosition:(NSInteger)position {
+    [self seekTo:position withCallbackId:self.callbackId];
+}
+
+- (void)visualPlayerSetAudioSaved:(NYPRAudio *)audio saved:(BOOL)saved {
+    [self setSavedAudio:audio];
+}
+
+- (void)visualPlayerGetAudioSaved:(NYPRAudio *)audio {
+    [self getSavedStatusForAudio:audio];
+}
+
+#pragma mark Saved Audio Methods
+
+- (void)setSavedAudio:(NYPRAudio *)audio {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginSaveAudioTypeKey,
+                                           kVLCPluginSaveAudioTypeKeyAudio : [audio metadataAsDictionary]};
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+    [self.audioPlayerViewController visualPlayerSetAudioSaved:audio saved:YES];
+}
+
+- (void)getSavedStatusForAudio:(NYPRAudio *)audio {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginIsAudioSaveAudioTypeKey,
+                                           kVLCPluginSaveAudioTypeKeyAudio : [audio metadataAsDictionary]};
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+}
+
+- (void)audioSavedStatus:(CDVInvokedUrlCommand*)command {
+    BOOL isSaved = [command.arguments.lastObject boolValue];
+    [self.audioPlayerViewController visualPlayerSetAudioSaved:self.audio saved:isSaved];
+}
+
+#pragma mark NYPRAudioPlayerViewControllerDelegate helpers
+
+- (void)playNextDiscoverTrack {
+    [self.discoverAudioPlaybackDelegate discoverPlayerNextTrack];
 }
 
 @end
