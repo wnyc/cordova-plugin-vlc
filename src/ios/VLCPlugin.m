@@ -52,6 +52,7 @@ static NSString * const kVLCPluginSaveAudioTypeKey = @"saveAudio";
 static NSString * const kVLCPluginSaveAudioTypeKeyAudio = @"audio";
 static NSString * const kVLCPluginIsAudioSaveAudioTypeKey = @"isAudioSaved";
 static NSString * const kVLCPluginNextSavedAudioTypeKey = @"nextSavedAudio";
+static NSString * const kVLCPluginNextSavedAudioTypeKeyOnCompletion = @"onCompletion";
 static NSString * const kVLCPluginPreviousSavedAudioTypeKey = @"previousSavedAudio";
 
 static NSString * const kVLCPluginSavedQueueTitle = @"queueTitle";
@@ -79,6 +80,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 @property NYPRAudioPlayerViewController *audioPlayerViewController;
 @property id <NYPRDiscoverAudioPlayerDelegate>discoverAudioPlaybackDelegate;
 @property NYPRAudio *audio;
+@property NYPRAudio *audioToBeDisplayed;
 @property NSString *callbackId;
 @property NSDictionary *currentAudio;
 @property NSTimer *flushBufferTimer;
@@ -317,10 +319,8 @@ typedef NSUInteger NYPRExtraMediaStates;
                     [self.mediaPlayer stop];
                 }
                 self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            } else if(self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
             }
+            [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
             [self.mediaPlayer play];
             [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
@@ -410,10 +410,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     DDLogInfo (@"VLC Plugin pausing playback");
     if (self.mediaPlayer.isPlaying) {
         [self.mediaPlayer pause];
-        
-        if (self.audio) {
-            self.audio.state = NYPRAudioStatePaused;
-        }
     }
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
@@ -424,7 +420,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     DDLogInfo (@"VLC Plugin stopping playback.");
     if (self.mediaPlayer.isPlaying) {
         [self.mediaPlayer stop];
-        self.audio.state = NYPRAudioStateStopped;
         [self vlc_onAudioStreamUpdate:MEDIA_STOPPED description:[self vlc_convertAudioStateToString:MEDIA_STOPPED]];
     }
 }
@@ -565,7 +560,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     if (self.isDiscoverAudioSelected) {
         self.audio.completed = YES;
     } else if (self.isPlayingSavedAudioQueue) {
-        [self initiateNextSavedQueueAudioPlayback];
+        [self initiateNextSavedQueueAudioPlaybackOnCompletion:YES];
     } else {
         [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
         self.audio = nil;
@@ -573,8 +568,9 @@ typedef NSUInteger NYPRExtraMediaStates;
     }
 }
 
-- (void)initiateNextSavedQueueAudioPlayback {
-    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginNextSavedAudioTypeKey };
+- (void)initiateNextSavedQueueAudioPlaybackOnCompletion:(BOOL)completion {
+    NSDictionary *pluginResultMessage = @{  kVLCPluginJSONTypeKey : kVLCPluginNextSavedAudioTypeKey,
+                                            kVLCPluginNextSavedAudioTypeKeyOnCompletion : @(completion) };
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
@@ -783,7 +779,16 @@ typedef NSUInteger NYPRExtraMediaStates;
     NSString *title = [self titleForAudio:audio];
     NSString *subtitle = [self subtitleForAudio:audio];
     NSString *imageFileUrl = [audio.imageFileUrl absoluteString] ? [audio.imageFileUrl absoluteString] : @"";
-    NSDictionary *metadata = @{kVLCPluginAudioMetadataKeyTitle : title, kVLCPluginAudioMetadataKeyArtist : subtitle, kVLCPluginAudioMetadataKeyLockscreenImageUrl : imageFileUrl };
+
+    NSDictionary *metadata;
+    
+    if (imageFileUrl) {
+        metadata = @{kVLCPluginAudioMetadataKeyTitle : title, kVLCPluginAudioMetadataKeyArtist : subtitle, kVLCPluginAudioMetadataKeyLockscreenImageUrl : imageFileUrl };
+    }
+    else {
+        metadata = @{kVLCPluginAudioMetadataKeyTitle : title, kVLCPluginAudioMetadataKeyArtist : subtitle };
+    }
+
     return metadata;
 }
 
@@ -1174,7 +1179,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     if (self.isDiscoverAudioSelected) {
         [self playNextDiscoverTrack];
     } else if (self.isPlayingSavedAudioQueue) {
-        [self initiateNextSavedQueueAudioPlayback];
+        [self initiateNextSavedQueueAudioPlaybackOnCompletion:NO];
     }
 }
 
@@ -1228,9 +1233,11 @@ typedef NSUInteger NYPRExtraMediaStates;
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
     [self.audioPlayerViewController visualPlayerSetAudioSaved:audio saved:YES];
+    [self.discoverAudioPlaybackDelegate audioPlayerSetAudioSaved:audio saved:YES];
 }
 
 - (void)getSavedStatusForAudio:(NYPRAudio *)audio {
+    self.audioToBeDisplayed = audio;
     NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginIsAudioSaveAudioTypeKey,
                                            kVLCPluginSaveAudioTypeKeyAudio : [audio metadataAsDictionary]};
     
@@ -1240,7 +1247,8 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)audioSavedStatus:(CDVInvokedUrlCommand*)command {
     BOOL isSaved = [command.arguments.lastObject boolValue];
-    [self.audioPlayerViewController visualPlayerSetAudioSaved:self.audio saved:isSaved];
+    [self.audioPlayerViewController visualPlayerSetAudioSaved:self.audioToBeDisplayed saved:isSaved];
+    [self.discoverAudioPlaybackDelegate audioPlayerSetAudioSaved:self.audioToBeDisplayed saved:isSaved];
 }
 
 #pragma mark NYPRAudioPlayerViewControllerDelegate helpers
