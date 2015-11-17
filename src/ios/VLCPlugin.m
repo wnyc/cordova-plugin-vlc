@@ -571,8 +571,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)initiateNextSavedQueueAudioPlaybackOnCompletion:(BOOL)completion {
     NSDictionary *pluginResultMessage = @{  kVLCPluginJSONTypeKey : kVLCPluginNextSavedAudioTypeKey,
-                                            kVLCPluginNextSavedAudioTypeKeyOnCompletion : @(completion) 
-}
+                                            kVLCPluginNextSavedAudioTypeKeyOnCompletion : @(completion) };
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
