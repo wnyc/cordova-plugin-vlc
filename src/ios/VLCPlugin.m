@@ -81,6 +81,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 @property id <NYPRDiscoverAudioPlayerDelegate>discoverAudioPlaybackDelegate;
 @property NYPRAudio *audio;
 @property NYPRAudio *audioToBeDisplayed;
+@property NYPRAudio *audioToBeSaved;
 @property NSString *callbackId;
 @property NSDictionary *currentAudio;
 @property NSTimer *flushBufferTimer;
@@ -570,7 +571,8 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)initiateNextSavedQueueAudioPlaybackOnCompletion:(BOOL)completion {
     NSDictionary *pluginResultMessage = @{  kVLCPluginJSONTypeKey : kVLCPluginNextSavedAudioTypeKey,
-                                            kVLCPluginNextSavedAudioTypeKeyOnCompletion : @(completion) };
+                                            kVLCPluginNextSavedAudioTypeKeyOnCompletion : @(completion) 
+}
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
@@ -1166,10 +1168,12 @@ typedef NSUInteger NYPRExtraMediaStates;
 }
 
 - (void)audioPlayerSetAudioSaved:(NYPRAudio *)audio saved:(BOOL)saved {
-    [self setSavedAudio:audio];
+    self.audioToBeSaved = audio;
+    [self getSavedStatusForAudio:audio];
 }
 
 - (void)audioPlayerGetAudioSaved:(NYPRAudio *)audio {
+    self.audioToBeDisplayed = audio;
     [self getSavedStatusForAudio:audio];
 }
 
@@ -1217,14 +1221,45 @@ typedef NSUInteger NYPRExtraMediaStates;
 }
 
 - (void)visualPlayerSetAudioSaved:(NYPRAudio *)audio saved:(BOOL)saved {
-    [self setSavedAudio:audio];
+    self.audioToBeSaved = audio;
+    [self getSavedStatusForAudio:audio];
 }
 
 - (void)visualPlayerGetAudioSaved:(NYPRAudio *)audio {
+    self.audioToBeDisplayed = audio;
     [self getSavedStatusForAudio:audio];
 }
 
 #pragma mark Saved Audio Methods
+
+- (void)getSavedStatusForAudio:(NYPRAudio *)audio {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginIsAudioSaveAudioTypeKey,
+                                           kVLCPluginSaveAudioTypeKeyAudio : [audio metadataAsDictionary]};
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+}
+
+- (void)audioSavedStatus:(CDVInvokedUrlCommand*)command {
+    BOOL isSaved = [command.arguments.lastObject boolValue];
+    NSString *audioID = [self audioIDForCommand:command];
+    
+    if ([audioID isEqualToString:self.audioToBeDisplayed.audioId]) {
+        [self displayAudio:self.audioToBeDisplayed saved:isSaved];
+        self.audioToBeDisplayed = nil;
+    } else if ([audioID isEqualToString:self.audioToBeSaved.audioId]) {
+        if (!isSaved) {
+            [self setSavedAudio:self.audioToBeSaved];
+        }
+        self.audioToBeSaved = nil;
+    }
+}
+
+- (void)displayAudio:(NYPRAudio *)audio saved:(BOOL)isSaved {
+    [self.audioPlayerViewController visualPlayerSetAudioSaved:self.audio saved:isSaved];
+    [self.discoverAudioPlaybackDelegate audioPlayerSetAudioSaved:self.audio saved:isSaved];
+}
+
 
 - (void)setSavedAudio:(NYPRAudio *)audio {
     NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginSaveAudioTypeKey,
@@ -1236,19 +1271,12 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self.discoverAudioPlaybackDelegate audioPlayerSetAudioSaved:audio saved:YES];
 }
 
-- (void)getSavedStatusForAudio:(NYPRAudio *)audio {
-    self.audioToBeDisplayed = audio;
-    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginIsAudioSaveAudioTypeKey,
-                                           kVLCPluginSaveAudioTypeKeyAudio : [audio metadataAsDictionary]};
-    
-    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
-    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
-}
-
-- (void)audioSavedStatus:(CDVInvokedUrlCommand*)command {
-    BOOL isSaved = [command.arguments.lastObject boolValue];
-    [self.audioPlayerViewController visualPlayerSetAudioSaved:self.audioToBeDisplayed saved:isSaved];
-    [self.discoverAudioPlaybackDelegate audioPlayerSetAudioSaved:self.audioToBeDisplayed saved:isSaved];
+- (NSString *)audioIDForCommand:(CDVInvokedUrlCommand*)command {
+    NSString *audioID = @"";
+    if ([command.arguments.firstObject isKindOfClass:[NSNumber class]]) {
+      audioID = [command.arguments.firstObject stringValue];
+    }
+    return  audioID;
 }
 
 #pragma mark NYPRAudioPlayerViewControllerDelegate helpers
