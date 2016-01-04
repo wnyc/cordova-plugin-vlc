@@ -306,11 +306,21 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     if ( fullFilename && fullFilename != (id)[NSNull null] ) {
         
-        // get the filename at the end of the file
-        NSString *file = [[[NSURL URLWithString:fullFilename]  lastPathComponent] lowercaseString];
-        NSString* path = [self vlc_getAudioDirectory];
-        NSString* fullPathAndFile=[NSString stringWithFormat:@"%@%@",path, file];
+        NSString *fullPathAndFile;
         
+        if (!self.isDiscoverAudioSelected) {
+            // get the filename at the end of the file
+            NSString *file = [[[NSURL URLWithString:fullFilename]  lastPathComponent] lowercaseString];
+            NSString *path = [self vlc_getAudioDirectory];
+            fullPathAndFile=[NSString stringWithFormat:@"%@%@",path, file];
+        }
+        else if ([[audio.playableUrl scheme] isEqualToString:@"file"]) {
+            fullPathAndFile = [fullFilename stringByReplacingOccurrencesOfString:[NSString stringWithFormat:@"%@://",[audio.playableUrl scheme]] withString:@""];
+        }
+        else {
+            fullPathAndFile = fullFilename;
+        }
+            
         if([[NSFileManager defaultManager] fileExistsAtPath:fullPathAndFile]){
             DDLogInfo (@"VLC Plugin playing local file (%@)", fullPathAndFile);
             if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ]) { // no url or new url
