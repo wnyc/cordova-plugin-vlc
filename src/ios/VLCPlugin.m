@@ -55,6 +55,9 @@ static NSString * const kVLCPluginNextSavedAudioTypeKey = @"nextSavedAudio";
 static NSString * const kVLCPluginNextSavedAudioTypeKeyOnCompletion = @"onCompletion";
 static NSString * const kVLCPluginPreviousSavedAudioTypeKey = @"previousSavedAudio";
 
+static NSString * const kVLCPluginDisplayShowTypeKey = @"displayShow";
+static NSString * const kVLCPluginDisplayShowSlugKey = @"slug";
+
 static NSString * const kVLCPluginSavedQueueTitle = @"queueTitle";
 static NSString * const kVLCPluginSavedQueueTitleMyPlaylist = @"My Playlist";
 
@@ -1237,6 +1240,24 @@ typedef NSUInteger NYPRExtraMediaStates;
 - (void)visualPlayerGetAudioSaved:(NYPRAudio *)audio {
     self.audioToBeDisplayed = audio;
     [self getSavedStatusForAudio:audio];
+}
+
+#pragma mark Display Show methods
+
+- (void)displayShow:(NSString *)slug {
+    NSDictionary *pluginResultMessage = @{ kVLCPluginJSONTypeKey : kVLCPluginDisplayShowTypeKey,
+                                           kVLCPluginDisplayShowSlugKey : slug};
+    
+    CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:pluginResultMessage];
+    [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
+}
+
+- (void)visualPlayerDisplayShow:(NSString *)slug {
+    [self displayShow:slug];
+}
+
+- (void)audioPlayerDisplayShow:(NSString *)slug {
+    [self displayShow:slug];
 }
 
 #pragma mark Saved Audio Methods
