@@ -233,7 +233,9 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
-            [self vlc_playstream:url info:[self lockScreenMetadataForAudio:self.audio]];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+                [self vlc_playstream:url info:[self lockScreenMetadataForAudio:self.audio]];
+            });
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
             DDLogInfo (@"VLC Plugin cannot play stream because the internet is not reachable");
@@ -325,18 +327,20 @@ typedef NSUInteger NYPRExtraMediaStates;
         }
             
         if([[NSFileManager defaultManager] fileExistsAtPath:fullPathAndFile]){
-            DDLogInfo (@"VLC Plugin playing local file (%@)", fullPathAndFile);
-            if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ]) { // no url or new url
-                if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
-                    // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
-                    // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
-                    [self.mediaPlayer stop];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+                DDLogInfo (@"VLC Plugin playing local file (%@)", fullPathAndFile);
+                if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL fileURLWithPath:fullPathAndFile] ]) { // no url or new url
+                    if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
+                        // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                        // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                        [self.mediaPlayer stop];
+                    }
+                    self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
                 }
-                self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL fileURLWithPath:fullPathAndFile]];
-            }
-            [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            [self.mediaPlayer play];
-            [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
+                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
+                [self.mediaPlayer play];
+                [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
+            });
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
             
         } else {
@@ -361,22 +365,24 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
-            DDLogInfo (@"VLC Plugin playing remote file (%@)", url);
-            if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || self.mediaPlayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
-                if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
-                    // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
-                    // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
-                    [self.mediaPlayer stop];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+                DDLogInfo (@"VLC Plugin playing remote file (%@)", url);
+                if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || self.mediaPlayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
+                    if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
+                        // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                        // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                        [self.mediaPlayer stop];
+                    }
+                    self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
+                } else if(self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
+                } else if (position>0) {
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position-1)}];
                 }
-                self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            } else if(self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            } else if (position>0) {
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position-1)}];
-            }
-            [self.mediaPlayer play];
-            [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
+                [self.mediaPlayer play];
+                [self vlc_setlockscreenmetadata:[self lockScreenMetadataForAudio:self.audio] refreshLockScreen:false];
+            });
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
             DDLogInfo (@"VLC Plugin cannot play remote file because internet is not reachable");
@@ -421,10 +427,12 @@ typedef NSUInteger NYPRExtraMediaStates;
 #pragma mark Audio playback controls
 
 - (void)pauseWithCallbackId:(NSString *)callbackId {
-    DDLogInfo (@"VLC Plugin pausing playback");
-    if (self.mediaPlayer.isPlaying) {
-        [self.mediaPlayer pause];
-    }
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+        DDLogInfo (@"VLC Plugin pausing playback");
+        if (self.mediaPlayer.isPlaying) {
+            [self.mediaPlayer pause];
+        }
+    });
     
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self vlc_sendPluginResult:pluginResult callbackId:callbackId];
@@ -444,10 +452,12 @@ typedef NSUInteger NYPRExtraMediaStates;
     DDLogInfo (@"VLC Plugin seeking to position (%ld)", (long)position );
     
     if ([self.mediaPlayer isSeekable]) {
-        float seconds=(float)position;
-        float length=(float)[[self.mediaPlayer.media length] intValue] / 1000;
-        float percent=seconds / length;
-        [self.mediaPlayer setPosition:percent];
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+            float seconds=(float)position;
+            float length=(float)[[self.mediaPlayer.media length] intValue] / 1000;
+            float percent=seconds / length;
+            [self.mediaPlayer setPosition:percent];
+        });
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     }else {
         DDLogInfo (@"VLC Plugin current audio is not seekable" );
@@ -461,12 +471,14 @@ typedef NSUInteger NYPRExtraMediaStates;
     CDVPluginResult* pluginResult = nil;
     
     if ([self.mediaPlayer isSeekable]){
-        DDLogInfo (@"VLC Plugin seeking to interval (%ld)", (long)interval );
-        if (interval>0){
-            [self.mediaPlayer jumpForward:((int)interval)];
-        }else{
-            [self.mediaPlayer jumpBackward:(-1*(int)interval)];
-        }
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+            DDLogInfo (@"VLC Plugin seeking to interval (%ld)", (long)interval );
+            if (interval>0){
+                [self.mediaPlayer jumpForward:((int)interval)];
+            }else{
+                [self.mediaPlayer jumpBackward:(-1*(int)interval)];
+            }
+        });
         pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     } else {
         DDLogInfo (@"VLC Plugin current audio is not seekable" );
