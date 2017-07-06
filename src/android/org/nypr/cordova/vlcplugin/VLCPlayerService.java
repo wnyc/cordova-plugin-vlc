@@ -26,6 +26,7 @@ import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
 
 import 	java.io.File;
@@ -103,7 +104,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         int i = super.onStartCommand(intent, flags, startId);
 
         if (intent == null) {
-            mNotificationManager.cancel(NOTIFICATION_ID);
+            stopForeground(true);
             this.stopSelf();
         }
         return i;
@@ -117,14 +118,20 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
         mPendingInterrupts = new HashSet<OnAudioInterruptListener.INTERRUPT_TYPE>();
 
-        libVLC = new LibVLC(this);
+        ArrayList<String> options = new ArrayList<String>();
+        // Options correspond to the VLC Commandline Options...
+        //     List: https://wiki.videolan.org/VLC_command-line_help/
+
+        // If youd like to turn on advanced logging, uncomment below.
+        // options.add("--log-verbose=2");
+        // options.add("-vvv");
+        libVLC = new LibVLC(this, options);
         mediaPlayer = new MediaPlayer(libVLC);
         mediaPlayer.setEventListener(this);
 
         Log.d(LOG_TAG, "Started NYPR Audio Player");
 
         remoteViews = new RemoteViews(getPackageName(), R.layout.nypr_ph_hc_notification);
-        mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction("android.net.conn.CONNECTIVITY_CHANGE");
@@ -137,7 +144,6 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     public boolean onUnbind(Intent intent) {
         boolean b = super.onUnbind(intent);
         Log.d(LOG_TAG, "Unbinding Service");
-        mNotificationManager.cancel(NOTIFICATION_ID);
         this.stopSelf();
         return b;
     }
@@ -166,7 +172,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     private float lastPosition;
     private int lastConnectionType;
     private boolean restartAudioWhenConnected;
-    
+
     private int currentStateType;
 
     // AudioPlayer states
@@ -311,10 +317,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 .setOngoing(true)
                 .setContentIntent(pendingIntent);
 
-
-        NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-        // mId allows you to update the notification later on.
-        mNotificationManager.notify(NOTIFICATION_ID, mBuilder.build());
+        startForeground(NOTIFICATION_ID, mBuilder.build());
 
         // play the Song
         startPlaying(media, pct);

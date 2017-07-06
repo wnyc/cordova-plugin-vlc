@@ -79,9 +79,7 @@
       <source-file src="lib/vlc.jar" target-dir="libs" />
       <source-file src="lib/google-play-services.jar" target-dir="libs" />
       <source-file src="lib/x86" target-dir="libs" />
-      <source-file src="lib/x86_64" target-dir="libs" />
       <source-file src="lib/armeabi-v7a" target-dir="libs" />
-      <source-file src="lib/arm64-v8a" target-dir="libs" />
 
   </platform>
 </plugin>
