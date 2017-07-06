@@ -117,7 +117,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
         mPendingInterrupts = new HashSet<OnAudioInterruptListener.INTERRUPT_TYPE>();
 
-        libVLC = new LibVLC();
+        libVLC = new LibVLC(this);
         mediaPlayer = new MediaPlayer(libVLC);
         mediaPlayer.setEventListener(this);
 
