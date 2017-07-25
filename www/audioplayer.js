@@ -41,4 +41,8 @@ AudioPlayer.prototype.seekto = function(success, error, position) {
   exec(success, error, "AudioPlayerPlugin", "seekto", [position]);
 };
 
+AudioPlayer.prototype.setuseragent = function(success, error, userAgent, readableName) {
+  exec(success, error, "AudioPlayerPlugin", "setuseragent", [userAgent, readableName]);
+};
+
 module.exports = new AudioPlayer();
