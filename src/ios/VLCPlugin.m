@@ -50,8 +50,6 @@ static int const kVLCPluginWanPrebuffer = 10000;
 static int const kVLCPluginBufferTimeout = 60;
 static int const kVLCPluginHeartbeatTimeout = 60;
 
-NSString * const VLCPluginRemoteControlEventNotification = @"VLCPluginRemoteControlEventNotification";
-
 enum NYPRExtraMediaStates {
     //MEDIA_LOADING = MEDIA_STOPPED + 1, // deprecated
     MEDIA_COMPLETED = MEDIA_STOPPED + 2,
@@ -88,9 +86,7 @@ typedef NSUInteger NYPRExtraMediaStates;
       [[UIApplication sharedApplication] beginReceivingRemoteControlEvents];
     }
     [self.viewController becomeFirstResponder];
-   
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(vlc_onRemoteControlEvent:) name:VLCPluginRemoteControlEventNotification object:nil];
-    
+
     // watch for local notification
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(vlc_onLocalNotification:) name:CDVLocalNotification object:nil]; // if app is in foreground
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(vlc_onUIApplicationDidFinishLaunchingNotification:) name:UIApplicationDidFinishLaunchingNotification object:nil]; // if app is not in foreground or not running
@@ -101,6 +97,8 @@ typedef NSUInteger NYPRExtraMediaStates;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(vlc_audioInterruption:) name:AVAudioSessionInterruptionNotification object:[AVAudioSession sharedInstance]];
     
     [UIDevice currentDevice].batteryMonitoringEnabled=YES; // required to determine if device is charging
+
+    [self vlc_setUpLockScreenControls];
 
     [self vlc_create];
     
@@ -158,7 +156,6 @@ typedef NSUInteger NYPRExtraMediaStates;
    
     [[NSNotificationCenter defaultCenter] removeObserver:self name:CDVLocalNotification object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:UIApplicationDidFinishLaunchingNotification object:nil];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:VLCPluginRemoteControlEventNotification object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVAudioSessionRouteChangeNotification object:nil];
     [[NSNotificationCenter defaultCenter] removeObserver:self name:AVAudioSessionInterruptionNotification object:[AVAudioSession sharedInstance]];
     
@@ -520,70 +517,6 @@ typedef NSUInteger NYPRExtraMediaStates;
     NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONPreviousValue };
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
-}
-
-- (void) vlc_onRemoteControlEvent:(NSNotification *) notification {
-    if ([[notification name] isEqualToString:VLCPluginRemoteControlEventNotification]){
-        NSDictionary *dict = [notification userInfo];
-        NSNumber * buttonId = [dict objectForKey:(@"buttonId")];
-        
-        switch ([buttonId intValue]){
-            case UIEventSubtypeRemoteControlTogglePlayPause:
-                DDLogInfo(@"VLC Plugin remote control play/pause");
-                if (self.mediaPlayer.isPlaying){
-                    [self.mediaPlayer pause];
-                }else{
-                    [self.mediaPlayer play];
-                }
-                break;
-                
-            case UIEventSubtypeRemoteControlPlay:
-                DDLogInfo(@"VLC Plugin remote control play");
-                [self.mediaPlayer play];
-                break;
-                
-            case UIEventSubtypeRemoteControlPause:
-                DDLogInfo(@"VLC Plugin remote control pause");
-                [self.mediaPlayer pause];
-                break;
-                
-            case UIEventSubtypeRemoteControlStop:
-                DDLogInfo(@"VLC Plugin remote control stop");
-                [self.mediaPlayer pause];
-                break;
-                
-            case UIEventSubtypeRemoteControlNextTrack:
-                DDLogInfo(@"VLC Plugin remote control next track");
-                [self vlc_onAudioSkipNext];
-                
-                break;
-                
-            case UIEventSubtypeRemoteControlPreviousTrack:
-                DDLogInfo(@"VLC Plugin remote control previous track");
-                [self vlc_onAudioSkipPrevious];
-                break;
-                
-            case UIEventSubtypeRemoteControlBeginSeekingBackward:
-                DDLogInfo(@"VLC Plugin remote control begin seeking backward");
-                break;
-                
-            case UIEventSubtypeRemoteControlEndSeekingBackward:
-                DDLogInfo(@"VLC Plugin remote control end seeking backward");
-                break;
-                
-            case UIEventSubtypeRemoteControlBeginSeekingForward:
-                DDLogInfo(@"VLC Plugin remote control begin seeking forward");
-                break;
-                
-            case UIEventSubtypeRemoteControlEndSeekingForward:
-                DDLogInfo(@"VLC Plugin Remote control end seeking forward");
-                break;
-                
-            default:
-                DDLogInfo(@"VLC Plugin remote control unknown command");
-                break;
-        }
-    }
 }
 
 #pragma mark Misc
@@ -1014,6 +947,8 @@ typedef NSUInteger NYPRExtraMediaStates;
     }
 }
 
+#pragma mark User Agent
+
 - (void)setuseragent:(CDVInvokedUrlCommand*)command {
     DDLogInfo (@"VLC Plugin configuring user agent");
 
@@ -1036,6 +971,50 @@ typedef NSUInteger NYPRExtraMediaStates;
 
     pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
     [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
+#pragma mark Enable/disable lock screen next/previous buttons
+
+- (void)setpreviousenabled:(CDVInvokedUrlCommand*)command {
+    if (command.arguments.count>0 && [command.arguments objectAtIndex:0] != (id)[NSNull null]) {
+        BOOL enabled = [[command.arguments objectAtIndex:0] boolValue];
+        [MPRemoteCommandCenter sharedCommandCenter].previousTrackCommand.enabled = enabled;
+    }
+
+    CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
+- (void)setnextenabled:(CDVInvokedUrlCommand*)command {
+    if (command.arguments.count>0 && [command.arguments objectAtIndex:0] != (id)[NSNull null]) {
+        BOOL enabled = [[command.arguments objectAtIndex:0] boolValue];
+        [MPRemoteCommandCenter sharedCommandCenter].nextTrackCommand.enabled = enabled;
+    }
+
+    CDVPluginResult *pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
+}
+
+- (void)vlc_setUpLockScreenControls {
+    [MPRemoteCommandCenter sharedCommandCenter].playCommand.enabled = true;
+    [[MPRemoteCommandCenter sharedCommandCenter].playCommand addTarget:self action:@selector(vlc_remotePlayTapped)];
+
+    [MPRemoteCommandCenter sharedCommandCenter].pauseCommand.enabled = true;
+    [[MPRemoteCommandCenter sharedCommandCenter].pauseCommand addTarget:self action:@selector(vlc_remotePauseTapped)];
+
+    [MPRemoteCommandCenter sharedCommandCenter].nextTrackCommand.enabled = true;
+    [[MPRemoteCommandCenter sharedCommandCenter].nextTrackCommand addTarget:self action:@selector(vlc_onAudioSkipNext)];
+
+    [MPRemoteCommandCenter sharedCommandCenter].previousTrackCommand.enabled = true;
+    [[MPRemoteCommandCenter sharedCommandCenter].previousTrackCommand addTarget:self action:@selector(vlc_onAudioSkipPrevious)];
+}
+
+- (void)vlc_remotePlayTapped {
+    [self.mediaPlayer play];
+}
+
+- (void)vlc_remotePauseTapped {
+    [self.mediaPlayer pause];
 }
 
 @end
