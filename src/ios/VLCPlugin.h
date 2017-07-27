@@ -20,5 +20,6 @@ extern NSString * const VLCPluginRemoteControlEventNotification;
 - (void)seek:(CDVInvokedUrlCommand*)command;
 - (void)seekto:(CDVInvokedUrlCommand*)command;
 - (void)setaudioinfo:(CDVInvokedUrlCommand*)command;
+- (void)setuseragent:(CDVInvokedUrlCommand*)command;
 
 @end

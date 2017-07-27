@@ -101,7 +101,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(vlc_audioInterruption:) name:AVAudioSessionInterruptionNotification object:[AVAudioSession sharedInstance]];
     
     [UIDevice currentDevice].batteryMonitoringEnabled=YES; // required to determine if device is charging
-    
+
     [self vlc_create];
     
     DDLogInfo(@"VLC Plugin initialized");
@@ -1012,6 +1012,30 @@ typedef NSUInteger NYPRExtraMediaStates;
         [fileManager createDirectoryAtPath:path withIntermediateDirectories:FALSE attributes:nil error:error];
         NSAssert(!error, @"Could not create directory at %@", path);
     }
+}
+
+- (void)setuseragent:(CDVInvokedUrlCommand*)command {
+    DDLogInfo (@"VLC Plugin configuring user agent");
+
+    CDVPluginResult* pluginResult = nil;
+
+    if (command.arguments.count>0 && [command.arguments objectAtIndex:0] != (id)[NSNull null]) {
+        NSString *userAgent = [command.arguments objectAtIndex:0];
+        NSString *readableName;
+        if (command.arguments.count>1 && [command.arguments objectAtIndex:1] != (id)[NSNull null]) {
+            readableName = [command.arguments objectAtIndex:1];
+        }
+        else {
+            NSString *version = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleShortVersionString"];
+            NSString *build = [[[NSBundle mainBundle] infoDictionary] objectForKey:@"CFBundleVersion"];
+            NSString *appName = [[[NSBundle mainBundle] infoDictionary] objectForKey:(NSString*)kCFBundleNameKey];
+            readableName = [NSString stringWithFormat:@"%@ %@ (%@)", appName, version, build];
+        }
+        [[VLCLibrary sharedLibrary] setHumanReadableName:readableName withHTTPUserAgent:userAgent];
+    }
+
+    pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+    [self vlc_sendPluginResult:pluginResult callbackId:command.callbackId];
 }
 
 @end
