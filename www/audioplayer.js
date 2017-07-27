@@ -45,4 +45,12 @@ AudioPlayer.prototype.setuseragent = function(success, error, userAgent, readabl
   exec(success, error, "AudioPlayerPlugin", "setuseragent", [userAgent, readableName]);
 };
 
+AudioPlayer.prototype.setpreviousenabled = function(success, error, enabled) {
+  exec(success, error, "AudioPlayerPlugin", "setpreviousenabled", [enabled]);
+};
+
+AudioPlayer.prototype.setnextenabled = function(success, error, enabled) {
+  exec(success, error, "AudioPlayerPlugin", "setnextenabled", [enabled]);
+};
+
 module.exports = new AudioPlayer();
