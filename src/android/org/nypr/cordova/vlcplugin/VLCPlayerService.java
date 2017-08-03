@@ -478,4 +478,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         }
     }
 
+    public void setUserAgent(String readableName, String userAgent) {
+        libVLC.setUserAgent(readableName, userAgent);
+    }
 }

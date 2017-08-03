@@ -17,6 +17,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.os.Environment;
 import android.os.IBinder;
@@ -38,7 +40,7 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
     private static final String HARD_STOP = "hardStop";
     private static final String SET_AUDIO_INFO = "setaudioinfo";
     private static final String GET_AUDIO_STATE = "getaudiostate";
-
+    private static final String SET_USER_AGENT = "setuseragent";
 
     protected static final String LOG_TAG = "VLCPlugin";
 //    protected static CordovaWebView mCachedWebView = null;
@@ -253,7 +255,29 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
                 pluginResult.setKeepCallback(true);
                 callbackContext.sendPluginResult(pluginResult);
+            } else if (action.equals(SET_USER_AGENT)) {
+                String userAgent = args.getString(0);
+                String readableName = null;
+                if (args.length() > 1) {
+                    readableName = args.getString(0);
+                } else {
+                    Context context = this.cordova.getActivity().getApplicationContext();
+                    String appName = context.getApplicationInfo().loadLabel(context.getPackageManager()).toString();
+                    try {
+                        PackageManager manager = context.getPackageManager();
+                        PackageInfo info = manager.getPackageInfo(context.getPackageName(), 0);
+                        String version = info.versionName;
+                        int build = info.versionCode;
+                        readableName = appName + " " + version + "-" + build;
+                    } catch (Exception e) {
+                        readableName = appName;
+                    }
+                }
+                playerService.setUserAgent(readableName, userAgent);
 
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+                pluginResult.setKeepCallback(true);
+                callbackContext.sendPluginResult(pluginResult);
             } else {
                 callbackContext.error(LOG_TAG + " error: invalid action (" + action + ")");
                 ret = false;
