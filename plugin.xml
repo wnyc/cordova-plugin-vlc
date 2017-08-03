@@ -51,7 +51,7 @@
     <platform name="android">
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="AudioPlayerPlugin" >
-                <param name="android-package" 
+                <param name="android-package"
                     value="org.nypr.cordova.vlcplugin.VLCPlugin"/>
                 </feature>
             </config-file>
@@ -78,9 +78,7 @@
       <source-file src="lib/aacdecoder-android-0.8.jar" target-dir="libs" />
       <source-file src="lib/vlc.jar" target-dir="libs" />
       <source-file src="lib/google-play-services.jar" target-dir="libs" />
-      <source-file src="lib/mips" target-dir="libs" />
       <source-file src="lib/x86" target-dir="libs" />
-      <source-file src="lib/armeabi" target-dir="libs" />
       <source-file src="lib/armeabi-v7a" target-dir="libs" />
 
   </platform>

@@ -1,2 +1,4 @@
 VLCKit/
 run_update
+*.rej
+*.orig
