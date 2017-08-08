@@ -41,6 +41,8 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
     private static final String SET_AUDIO_INFO = "setaudioinfo";
     private static final String GET_AUDIO_STATE = "getaudiostate";
     private static final String SET_USER_AGENT = "setuseragent";
+    private static final String SET_NEXT_ENABLED = "setnextenabled";
+    private static final String SET_PREVIOUS_ENABLED = "setpreviousenabled";
 
     protected static final String LOG_TAG = "VLCPlugin";
 //    protected static CordovaWebView mCachedWebView = null;
@@ -275,6 +277,10 @@ public class VLCPlugin extends CordovaPlugin implements OnAudioInterruptListener
                 }
                 playerService.setUserAgent(readableName, userAgent);
 
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+                pluginResult.setKeepCallback(true);
+                callbackContext.sendPluginResult(pluginResult);
+            } else if (action.equals(SET_NEXT_ENABLED) || action.equals(SET_PREVIOUS_ENABLED)) {
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
                 pluginResult.setKeepCallback(true);
                 callbackContext.sendPluginResult(pluginResult);
