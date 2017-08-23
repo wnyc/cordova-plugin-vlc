@@ -205,33 +205,34 @@ typedef NSUInteger NYPRExtraMediaStates;
 
 - (void)vlc_playstream:(NSString *)url info:(NSDictionary *)info {
     DDLogInfo (@"VLC Plugin starting stream (%@)", url);
-    
-    VLCMediaPlayerState vlcState = self.mediaPlayer.state;
-    VLCMediaState vlcMediaState = self.mediaPlayer.media.state;
-    
-    DDLogInfo(@"VLC Plugin audio state is %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
-    
-    if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || vlcState==VLCMediaPlayerStateStopped || vlcState==VLCMediaPlayerStateError) { // no url or new url
-        if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
-            // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
-            // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
-            [self.mediaPlayer stop];
-        }
-        
-        int prebuffer=kVLCPluginWanPrebuffer;
-        NetworkStatus connectionType = [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus];
-        
-        if ( connectionType == ReachableViaWiFi) {
-            prebuffer = kVLCPluginWifiPrebuffer;
-        }
 
-        self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
-        NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
-        [dictionary setObject:@(prebuffer) forKey:kVLCPluginVLCNetworkCachingKey];
-        [self.mediaPlayer.media addOptions:dictionary];
-        
-    }
-    [self.mediaPlayer play];
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+        VLCMediaPlayerState vlcState = self.mediaPlayer.state;
+        VLCMediaState vlcMediaState = self.mediaPlayer.media.state;
+
+        DDLogInfo(@"VLC Plugin audio state is %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
+
+        if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || vlcState==VLCMediaPlayerStateStopped || vlcState==VLCMediaPlayerStateError) { // no url or new url
+            if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
+                // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                [self.mediaPlayer stop];
+            }
+
+            int prebuffer=kVLCPluginWanPrebuffer;
+            NetworkStatus connectionType = [[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus];
+
+            if ( connectionType == ReachableViaWiFi) {
+                prebuffer = kVLCPluginWifiPrebuffer;
+            }
+
+            self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
+            NSMutableDictionary *dictionary = [[NSMutableDictionary alloc] init];
+            [dictionary setObject:@(prebuffer) forKey:kVLCPluginVLCNetworkCachingKey];
+            [self.mediaPlayer.media addOptions:dictionary];
+        }
+        [self.mediaPlayer play];
+    });
     [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
 }
 
@@ -493,7 +494,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     NSDictionary * o = @{ kVLCPluginJSONTypeKey : kVLCPluginJSONStateValue, kVLCPluginJSONStateKey : [NSNumber numberWithInt:state], kVLCPluginJSONDescriptionKey : description };
     CDVPluginResult* pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK messageAsDictionary:o];
     [self vlc_sendPluginResult:pluginResult callbackId:self.callbackId];
-    
+
     [self vlc_setNowPlayingInfo:self.lockScreenCache retrieveLockscreenArt:YES];
 }
 
