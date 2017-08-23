@@ -296,21 +296,23 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     if ( url && url != (id)[NSNull null] ) {
         if([[CDVReachability reachabilityForInternetConnection] currentReachabilityStatus]!=NotReachable) {
-            DDLogInfo (@"VLC Plugin playing remote file (%@)", url);
-            if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || self.mediaPlayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
-                if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
-                    // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
-                    // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
-                    [self.mediaPlayer stop];
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^() {
+                DDLogInfo (@"VLC Plugin playing remote file (%@)", url);
+                if (!self.mediaPlayer.media || ![self.mediaPlayer.media.url isEqual:[NSURL URLWithString:url] ] || self.mediaPlayer.state == VLCMediaPlayerStateStopped) { // no url or new url, or state is stopped (meaning a likely abnormal termination of playback)
+                    if(self.mediaPlayer.state == VLCMediaPlayerStatePaused) {
+                        // hack to fix WNYCAPP-1031 -- audio of new track is not playing if new track is played while current track is paused
+                        // better solution is to 'stop' current track/stream and wait for stopped event before playing, so current and new tracks don't step on each other in weird ways
+                        [self.mediaPlayer stop];
+                    }
+                    self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
+                } else if(self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
+                } else if (position>0) {
+                    [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position-1)}];
                 }
-                self.mediaPlayer.media = [VLCMedia mediaWithURL:[NSURL URLWithString:url]];
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            } else if(self.mediaPlayer.state != VLCMediaPlayerStatePaused) {
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position)}];
-            } else if (position>0) {
-                [self.mediaPlayer.media addOptions:@{kVLCPluginVLCStartTimeKey: @(position-1)}];
-            }
-            [self.mediaPlayer play];
+                [self.mediaPlayer play];
+            });
             [self vlc_setlockscreenmetadata:info refreshLockScreen:false];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
         } else {
