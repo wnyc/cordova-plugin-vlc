@@ -8,6 +8,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.media.AudioManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
@@ -32,10 +33,12 @@ import java.util.HashSet;
 import 	java.io.File;
 
 
-public class VLCPlayerService extends Service implements MediaPlayer.EventListener {
+public class VLCPlayerService extends Service implements MediaPlayer.EventListener, AudioManager.OnAudioFocusChangeListener {
 
     private static final String LOG_TAG = "VLCPlayerService";
     private static final int NOTIFICATION_ID = 100;
+
+    private AudioManager audioManager;
 
     public class LocalBinder extends Binder {
         public VLCPlayerService getService() {
@@ -58,7 +61,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
                 // network connection obtained - restart audio if necessary
                 if (lastConnectionType == -1 && !mediaPlayer.isPlaying() && restartAudioWhenConnected) {
                     mediaPlayer.setMedia(currentlyPlaying);
-                    mediaPlayer.play();
+                    getAudioPlayerGetFocusAndPlay();
                     mediaPlayer.setPosition(lastPosition);
                 }
                 lastConnectionType = networkInfo.getType();
@@ -116,6 +119,8 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
         Log.d(LOG_TAG, "Service created");
 
+        audioManager = (AudioManager) getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
+
         mPendingInterrupts = new HashSet<OnAudioInterruptListener.INTERRUPT_TYPE>();
 
         ArrayList<String> options = new ArrayList<String>();
@@ -154,6 +159,8 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         libVLC.release();
 
         unregisterReceiver(receiver);
+
+        audioManager.abandonAudioFocus(this);
 
         super.onDestroy();
         Log.d(LOG_TAG, "Service Destroyed");
@@ -337,11 +344,11 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
             if (currentMedia == null || !currentMedia.getUri().toString().equals(media.getUri().toString())) {
                 mediaPlayer.setMedia(media);
-                mediaPlayer.play();
+                getAudioPlayerGetFocusAndPlay();
                 mediaPlayer.setPosition(position);
                 currentlyPlaying = media;
             } else {
-                mediaPlayer.play();
+                getAudioPlayerGetFocusAndPlay();
             }
         }
     }
@@ -480,5 +487,32 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
 
     public void setUserAgent(String readableName, String userAgent) {
         libVLC.setUserAgent(readableName, userAgent);
+    }
+
+    @Override
+    public void onAudioFocusChange(int focusChange) {
+        switch (focusChange) {
+            case AudioManager.AUDIOFOCUS_GAIN:
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
+                mediaPlayer.pause();
+                break;
+            case AudioManager.AUDIOFOCUS_LOSS:
+                mediaPlayer.pause();
+                audioManager.abandonAudioFocus(this);
+                break;
+        }
+    }
+
+    private boolean requestAudioFocus() {
+        int audioFocus = audioManager.requestAudioFocus(this, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN);
+        return audioFocus == AudioManager.AUDIOFOCUS_REQUEST_GRANTED;
+    }
+
+    private void getAudioPlayerGetFocusAndPlay() {
+        requestAudioFocus();
+        mediaPlayer.play();
     }
 }
