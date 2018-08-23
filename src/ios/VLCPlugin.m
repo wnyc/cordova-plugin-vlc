@@ -657,6 +657,13 @@ typedef NSUInteger NYPRExtraMediaStates;
         
         mediaItemArtwork = [self vlc_getLockScreenImage:artworkURL retrieveLockscreenArt:retrieveLockscreenArt];
     }
+
+    if (!mediaItemArtwork) {
+        UIImage *image = [UIImage imageNamed: @"icon"];
+        if (image) {
+            mediaItemArtwork = [[MPMediaItemArtwork alloc] initWithImage:image];
+        }
+    }
     
     NSDictionary *nowPlaying;
     
