@@ -70,6 +70,7 @@ typedef NSUInteger NYPRExtraMediaStates;
 @property NSURLSessionDataTask *lockscreenImageDownloadTask;
 @property NSTimer *heartbeatTimer;
 @property NSTimeInterval lastHeartbeat;
+@property BOOL completedEventSentForCurrentTrack;
 
 @end
 
@@ -101,7 +102,9 @@ typedef NSUInteger NYPRExtraMediaStates;
     [self vlc_setUpLockScreenControls];
 
     [self vlc_create];
-    
+
+    _completedEventSentForCurrentTrack = NO;
+
     DDLogInfo(@"VLC Plugin initialized");
     DDLogInfo(@"VLC Library Version %@", [[VLCLibrary sharedLibrary] version]);
 }
@@ -416,6 +419,7 @@ typedef NSUInteger NYPRExtraMediaStates;
     
     NSString * description=@"";
     int state = MEDIA_NONE;
+    BOOL isDuplicateStoppedEvent = NO;
     
     DDLogInfo(@"VLC Plugin audio player state has changed to %@ / %@", VLCMediaPlayerStateToString(vlcState), [self vlc_convertVLCMediaStateToString:vlcMediaState]);
     
@@ -428,14 +432,20 @@ typedef NSUInteger NYPRExtraMediaStates;
                 DDLogInfo(@"VLC Plugin audio has stopped. times: %d/%d", [[self.mediaPlayer time]intValue], [[self.mediaPlayer remainingTime]intValue]);
                 if (self.mediaPlayer.media ) {
                     DDLogInfo(@"VLC Plugin audio length: %d", [[self.mediaPlayer.media length] intValue]);
-                    // regard track as completed if it ends within 1/2 second of length...
-                    if ([[self.mediaPlayer.media length] intValue]>0 && [[self.mediaPlayer remainingTime]intValue]>=-500 ) {
+                    // regard track as completed if it ends within 1 second of length...
+                    if ([[self.mediaPlayer.media length] intValue]>0 && [[self.mediaPlayer remainingTime]intValue]>=-1000 ) {
                         DDLogInfo(@"VLC Plugin audio track has completed");
                         // send final progress update -- the delegate function (mediaPlayerTimeChanged) doesn't seem to fire
                         // for length:length -- the final call to it is for a time less than the track time, so simulate it here...
                         [self vlc_onAudioProgressUpdate:[[self.mediaPlayer.media length]intValue] duration:[[self.mediaPlayer.media length] intValue] available:-1];
                         // send complete event
-                        [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
+                        if (!self.completedEventSentForCurrentTrack) {
+                            self.completedEventSentForCurrentTrack = YES;
+                            [self vlc_onAudioStreamUpdate:MEDIA_COMPLETED description:[self vlc_convertAudioStateToString:MEDIA_COMPLETED]];
+                        }
+                        else {
+                            isDuplicateStoppedEvent = YES;
+                        }
                     }
                 }
             }
@@ -475,8 +485,14 @@ typedef NSUInteger NYPRExtraMediaStates;
     } else {
         [self vlc_clearHeartbeatTimer];
     }
-    
-    [self vlc_onAudioStreamUpdate:state description:description];
+
+    if (state != MEDIA_COMPLETED && state != MEDIA_STOPPED) {
+        self.completedEventSentForCurrentTrack = NO;
+    }
+
+    if (!isDuplicateStoppedEvent) {
+        [self vlc_onAudioStreamUpdate:state description:description];
+    }
     
     if ([UIDevice currentDevice].batteryState == UIDeviceBatteryStateCharging || [UIDevice currentDevice].batteryState == UIDeviceBatteryStateFull ) {
         // device is charging - disable automatic screen-locking
