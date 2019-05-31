@@ -21,7 +21,7 @@ import android.widget.RemoteViews;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.nypr.android.R;
+import org.wqxr.android.R;
 import org.videolan.libvlc.LibVLC;
 import org.videolan.libvlc.Media;
 import org.videolan.libvlc.MediaPlayer;
@@ -31,12 +31,17 @@ import java.util.ArrayList;
 import java.util.HashSet;
 
 import 	java.io.File;
+import java.util.Timer;
+import java.util.TimerTask;
 
 
 public class VLCPlayerService extends Service implements MediaPlayer.EventListener, AudioManager.OnAudioFocusChangeListener {
 
     private static final String LOG_TAG = "VLCPlayerService";
     private static final int NOTIFICATION_ID = 100;
+
+    private Timer flushBufferTimer;
+    private static final int FLUSH_BUFFER_TIMEOUT = 1000 * 30;
 
     private AudioManager audioManager;
 
@@ -339,7 +344,6 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             // don't play, store new stream for when interrupt(s) go away
             // stream will be (re)started by resumeAudio
 
-
             Media currentMedia = mediaPlayer.getMedia();
 
             if (currentMedia == null || !currentMedia.getUri().toString().equals(media.getUri().toString())) {
@@ -357,6 +361,7 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
         // make sure audio is playing
         if (mediaPlayer.isPlaying()) {
             mediaPlayer.pause();
+            startFlushBufferTimer();
         }
     }
 
@@ -410,6 +415,15 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             if (mediaPlayer.isPlaying()/* || mediaPlayer.getPlayerState() == 0*/) {
                 mediaPlayer.stop();
             }
+        }
+        // clear interrupts
+        mPendingInterrupts.clear();
+    }
+
+    public void hardStopPlaying() {
+        Log.d(LOG_TAG, "Hard Stopping Stream");
+        if (mediaPlayer != null) {
+            mediaPlayer.stop();
         }
         // clear interrupts
         mPendingInterrupts.clear();
@@ -476,6 +490,10 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             mListener.onAudioStreamingError(stateType);
         }
 
+        if (stateType != MediaPlayer.Event.Paused) {
+            stopFlushBufferTimer();
+        }
+
         if (stateType != currentStateType && mListener != null) {
             mListener.onAudioStateUpdated(event);
             currentStateType = stateType;
@@ -497,10 +515,10 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK:
                 break;
             case AudioManager.AUDIOFOCUS_LOSS_TRANSIENT:
-                mediaPlayer.pause();
+                pausePlaying();
                 break;
             case AudioManager.AUDIOFOCUS_LOSS:
-                mediaPlayer.pause();
+                pausePlaying();
                 audioManager.abandonAudioFocus(this);
                 break;
         }
@@ -512,7 +530,31 @@ public class VLCPlayerService extends Service implements MediaPlayer.EventListen
     }
 
     private void getAudioPlayerGetFocusAndPlay() {
+        stopFlushBufferTimer();
         requestAudioFocus();
         mediaPlayer.play();
+    }
+
+    private void startFlushBufferTimer() {
+        stopFlushBufferTimer();
+        flushBufferTimer = new Timer();
+        TimerTask timerTask = new TimerTask() {
+            @Override
+            public void run() {
+                hardStopPlaying();
+            }
+        };
+        flushBufferTimer.schedule(timerTask, FLUSH_BUFFER_TIMEOUT);
+    }
+
+    private void stopFlushBufferTimer() {
+        try {
+            if (flushBufferTimer != null) {
+                flushBufferTimer.cancel();
+            }
+        } catch (Exception e) {
+        } finally {
+            flushBufferTimer = null;
+        }
     }
 }
